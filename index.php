@@ -1,18 +1,23 @@
 <?php
 
+$max = 15;
+
 function rng(): int
 {
-    return rand(1, 10);
-}
-
-function rnglow(): int
-{
-    return rand(1, 3);
+    global $max;
+    return rand(-$max, $max - 1) + 1;
 }
 
 function rnghigh(): int
 {
-    return rand(8, 10);
+    global $max;
+    return rand($max-2, $max);
+}
+
+function rnglow(): int
+{
+    global $max;
+    return rand(-$max+2, -$max);
 }
 
 
@@ -52,12 +57,6 @@ $candles = array_map(function ($high, $low, $open, $close) {
             cursor: pointer;
         }
 
-        .candle-red:hover,
-        .candle-green:hover {
-            z-index: 100;
-            box-shadow: 0 0 10px 8px #000;
-        }
-
         .candle-red {
             background-color: #f00;
         }
@@ -72,8 +71,8 @@ $candles = array_map(function ($high, $low, $open, $close) {
         }
 
         .popover {
-            top: -15%;
-            left: 15%;
+            top: -50%;
+            left: 50%;
             display: none;
             position: absolute;
             background-color: #fff;
@@ -83,7 +82,24 @@ $candles = array_map(function ($high, $low, $open, $close) {
             white-space: nowrap;
         }
 
-        .candle:hover .popover {
+        .candle:hover:nth-of-type(2n) .popover {
+            right: 50%;
+            left: auto;
+        }
+
+        .candle:hover .candle-red,
+        .candle:hover .candle-green {
+            opacity: 0.5;
+        }
+
+        .candle-red:hover,
+        .candle-green:hover {
+            opacity: 1 !important;
+            box-shadow: 0 0 10px 8px #000;
+        }
+
+        .candle-red:hover .popover,
+        .candle-green:hover .popover {
             display: block;
         }
     </style>
@@ -96,18 +112,30 @@ $candles = array_map(function ($high, $low, $open, $close) {
         $x = 0;
         $y = 30;
 
+        function popover($name, $value)
+        {
+            $title = ucfirst($name);
+            return "<div class='popover'><h1>{$title}: {$value}</h1></div>";
+        }
+
         foreach ($candles as $candle) :
             extract($candle);
-            $class = $open > $close ? 'candle-red' : 'candle-green';
+            $close_high = $close > $open;
+            $close_low = !$close_high;
+            $class = $close_high ? 'candle-green' : 'candle-red';
         ?>
             <div class="candle" style="top: <?= $y ?>vh; left: <?= $x ?>vw;">
-                <div class="<?= $class ?> line" style="height: <?= $high ?>vh;"></div>
-                <div class=<?= $class ?> style="height: <?= $open ?>vh;"></div>
-                <div class=<?= $class ?> style="height: <?= $close ?>vh;"></div>
-                <div class="<?= $class ?> line" style="height: <?= $low ?>vh;"></div>
-                <div class="popover">
-                    <h1>Open: <?= $open ?></h1>
-                    <h1>Close: <?= $close ?></h1>
+                <div class="<?= $class ?> line" style="height: <?= $close_high ? abs($high - $close) : abs($high - $open) ?>vh;">
+                    <?= popover('high', $high) ?>
+                </div>
+                <div class=<?= $class ?> style="height: <?= abs($open - $close) ?>vh;">
+                    <?= $close_high ? popover('close', $close) : popover('open', $open) ?>
+                </div>
+                <div class=<?= $class ?> style="height: <?= abs($close - $open) ?>vh;">
+                    <?= $close_low ? popover('close', $close) : popover('open', $open) ?>
+                </div>
+                <div class="<?= $class ?> line" style="height: <?= $close_low ? abs($low - $close) : abs($low - $open) ?>vh;">
+                    <?= popover('low', $low) ?>
                 </div>
             </div>
         <?php
