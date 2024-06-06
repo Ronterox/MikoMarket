@@ -2,7 +2,7 @@
 
 function rng(): int
 {
-    return rand(3, 10);
+    return rand(1, 10);
 }
 
 function rnglow(): int
@@ -20,12 +20,12 @@ $num_candles = 8;
 
 $highs = array_map('rnghigh', range(1, $num_candles));
 $lows = array_map('rnglow', range(1, $num_candles));
-$ends = array_map('rng', range(1, $num_candles));
-$starts = array_map('rng', range(1, $num_candles));
+$closes = array_map('rng', range(1, $num_candles));
+$opens = array_map('rng', range(1, $num_candles));
 
-$candles = array_map(function ($high, $low, $start, $end) {
-    return compact('high', 'low', 'start', 'end');
-}, $highs, $lows, $starts, $ends);
+$candles = array_map(function ($high, $low, $open, $close) {
+    return compact('high', 'low', 'open', 'close');
+}, $highs, $lows, $opens, $closes);
 
 ?>
 
@@ -49,6 +49,13 @@ $candles = array_map(function ($high, $low, $start, $end) {
             display: inline-block;
             position: relative;
             overflow: visible;
+            cursor: pointer;
+        }
+
+        .candle-red:hover,
+        .candle-green:hover {
+            z-index: 100;
+            box-shadow: 0 0 10px 8px #000;
         }
 
         .candle-red {
@@ -64,8 +71,20 @@ $candles = array_map(function ($high, $low, $start, $end) {
             margin: 0 45%;
         }
 
-        body {
-            cursor: pointer;
+        .popover {
+            top: -15%;
+            left: 15%;
+            display: none;
+            position: absolute;
+            background-color: #fff;
+            border: 1px solid #000;
+            padding: 1em;
+            z-index: 100;
+            white-space: nowrap;
+        }
+
+        .candle:hover .popover {
+            display: block;
         }
     </style>
     <script src="https://unpkg.com/htmx.org/dist/htmx.min.js"></script>
@@ -79,13 +98,17 @@ $candles = array_map(function ($high, $low, $start, $end) {
 
         foreach ($candles as $candle) :
             extract($candle);
-            $class = $start > $end ? 'candle-red' : 'candle-green';
+            $class = $open > $close ? 'candle-red' : 'candle-green';
         ?>
             <div class="candle" style="top: <?= $y ?>vh; left: <?= $x ?>vw;">
                 <div class="<?= $class ?> line" style="height: <?= $high ?>vh;"></div>
-                <div class=<?= $class ?> style="height: <?= $start ?>vh;"></div>
-                <div class=<?= $class ?> style="height: <?= $end ?>vh;"></div>
+                <div class=<?= $class ?> style="height: <?= $open ?>vh;"></div>
+                <div class=<?= $class ?> style="height: <?= $close ?>vh;"></div>
                 <div class="<?= $class ?> line" style="height: <?= $low ?>vh;"></div>
+                <div class="popover">
+                    <h1>Open: <?= $open ?></h1>
+                    <h1>Close: <?= $close ?></h1>
+                </div>
             </div>
         <?php
             $x += 1;
