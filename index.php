@@ -1,42 +1,3 @@
-<?php
-
-$max = 15;
-$num_candles = filter_input(INPUT_POST, 'num_candles', FILTER_VALIDATE_INT) ?: 10;
-
-function rng(): int
-{
-    global $max;
-    return rand(-$max, $max - 1) + 1;
-}
-
-function rnghigh(): int
-{
-    global $max;
-    return rand($max - 2, $max);
-}
-
-function rnglow(): int
-{
-    global $max;
-    return rand(-$max + 2, -$max);
-}
-
-
-$highs = array_map('rnghigh', range(1, $num_candles));
-$lows = array_map('rnglow', range(1, $num_candles));
-$closes = array_map('rng', range(1, $num_candles));
-$opens = array_map('rng', range(1, $num_candles));
-
-$candles = array_map(function ($high, $low, $open, $close) {
-    return compact('high', 'low', 'open', 'close');
-}, $highs, $lows, $opens, $closes);
-
-if (isset($_POST['num_candles'])) {
-    return require 'candles.php';
-}
-
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -92,7 +53,6 @@ if (isset($_POST['num_candles'])) {
         }
 
         #candles {
-            scroll-snap-type: x mandatory;
             white-space: nowrap;
             overflow-x: scroll;
             overflow-y: visible;
@@ -109,6 +69,10 @@ if (isset($_POST['num_candles'])) {
             z-index: 100;
         }
 
+        header:has(.simulation div) + #candles {
+            scroll-snap-type: x mandatory;
+        }
+
         .candle,
         .candle-red,
         .candle-green {
@@ -116,11 +80,10 @@ if (isset($_POST['num_candles'])) {
             height: 40vh;
             margin: 0 1vw;
             display: inline-block;
+            position: relative;
             overflow: visible;
             cursor: pointer;
             white-space: normal;
-            scroll-snap-align: start;
-            scroll-snap-stop: always;
         }
 
         .candle-red {
@@ -141,21 +104,16 @@ if (isset($_POST['num_candles'])) {
             left: 50%;
             display: none;
             position: absolute;
+            white-space: nowrap;
             background-color: #fff;
             border: 1px solid #000;
             padding: 1em;
             z-index: 100;
-            white-space: nowrap;
         }
 
         .candle:hover:nth-of-type(2n) .popover {
             right: 50%;
             left: auto;
-        }
-
-        .candle:hover .candle-red,
-        .candle:hover .candle-green {
-            opacity: 0.5;
         }
 
         .candle-red:hover,
@@ -164,9 +122,18 @@ if (isset($_POST['num_candles'])) {
             box-shadow: 0 0 10px 8px #000;
         }
 
+        .candle:hover .candle-red,
+        .candle:hover .candle-green {
+            opacity: 0.5;
+        }
+
         .candle-red:hover .popover,
         .candle-green:hover .popover {
             display: block;
+        }
+
+        .candle:last-child {
+            scroll-snap-align: end;
         }
     </style>
     <script src="https://unpkg.com/htmx.org/dist/htmx.min.js"></script>
@@ -175,15 +142,14 @@ if (isset($_POST['num_candles'])) {
 <body>
     <header>
         <h1>Miko Market</h1>
-        <form hx-post="#" hx-swap="outerHTML" hx-target="#candles">
+        <form hx-get="/candles.php" hx-swap="outerHTML" hx-target="#candles">
             <label>
                 <span>Number of candles:</span>
                 <input type="number" name="num_candles" value="<?= $num_candles ?>">
             </label>
             <button>Submit</button>
         </form>
-        <button class="simulation">Start Simulation</button>
-        <button class="simulation">Stop Simulation</button>
+        <button class="simulation" hx-get="/candles.php?simulate=true" hx-swap="outerHTML">Start Simulation</button>
     </header>
     <?php require 'candles.php'; ?>
 </body>
