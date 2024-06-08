@@ -1,6 +1,7 @@
 <?php
 
 $max = 15;
+$num_candles = filter_input(INPUT_POST, 'num_candles', FILTER_VALIDATE_INT) ?: 10;
 
 function rng(): int
 {
@@ -11,17 +12,15 @@ function rng(): int
 function rnghigh(): int
 {
     global $max;
-    return rand($max-2, $max);
+    return rand($max - 2, $max);
 }
 
 function rnglow(): int
 {
     global $max;
-    return rand(-$max+2, -$max);
+    return rand(-$max + 2, -$max);
 }
 
-
-$num_candles = 8;
 
 $highs = array_map('rnghigh', range(1, $num_candles));
 $lows = array_map('rnglow', range(1, $num_candles));
@@ -32,6 +31,10 @@ $candles = array_map(function ($high, $low, $open, $close) {
     return compact('high', 'low', 'open', 'close');
 }, $highs, $lows, $opens, $closes);
 
+if (isset($_POST['num_candles'])) {
+    return require 'candles.php';
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -40,10 +43,70 @@ $candles = array_map(function ($high, $low, $open, $close) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Miko Market</title>
     <style>
-        .candles {
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+
+        header {
+            background-color: #000;
+            font-size: 1.2em;
+            text-align: center;
+            color: #fff;
+            padding: 1em;
+            position: sticky;
+            top: 0;
+        }
+
+        header input {
+            width: 5em;
+            margin: 0 1em;
+            font-size: 1em;
+            border: 1px solid #000;
+            border-radius: 0.5em;
+            padding: 0.5em;
+        }
+
+        header button {
+            font-size: 1em;
+            border: 1px solid #000;
+            border-radius: 0.5em;
+            padding: 0.5em;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        header *:hover {
+            color: yellowgreen;
+        }
+
+        label {
+            cursor: pointer;
+        }
+
+        button.simulation {
+            margin-top: 1em;
+        }
+
+        #candles {
             min-height: 100vh;
+            scroll-snap-type: x mandatory;
+            white-space: nowrap;
+            overflow-x: scroll;
+            overflow-y: visible;
+        }
+
+        #start {
+            position: absolute;
+            white-space: nowrap;
+            font-size: 1.5em;
+            text-align: center;
+            padding: 1em;
+            text-shadow: 0 0 10px #000;
+            color: yellowgreen;
+            z-index: 100;
         }
 
         .candle,
@@ -51,10 +114,14 @@ $candles = array_map(function ($high, $low, $open, $close) {
         .candle-green {
             width: 10vw;
             height: 40vh;
+            margin: 0 1vw;
             display: inline-block;
             position: relative;
             overflow: visible;
             cursor: pointer;
+            white-space: normal;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
         }
 
         .candle-red {
@@ -107,42 +174,19 @@ $candles = array_map(function ($high, $low, $open, $close) {
 </head>
 
 <body>
-    <section class='candles'>
-        <?php
-        $x = 0;
-        $y = 30;
-
-        function popover($name, $value)
-        {
-            $title = ucfirst($name);
-            return "<div class='popover'><h1>{$title}: {$value}</h1></div>";
-        }
-
-        foreach ($candles as $candle) :
-            extract($candle);
-            $close_high = $close > $open;
-            $close_low = !$close_high;
-            $class = $close_high ? 'candle-green' : 'candle-red';
-        ?>
-            <div class="candle" style="top: <?= $y ?>vh; left: <?= $x ?>vw;">
-                <div class="<?= $class ?> line" style="height: <?= $close_high ? abs($high - $close) : abs($high - $open) ?>vh;">
-                    <?= popover('high', $high) ?>
-                </div>
-                <div class=<?= $class ?> style="height: <?= abs($open - $close) ?>vh;">
-                    <?= $close_high ? popover('close', $close) : popover('open', $open) ?>
-                </div>
-                <div class=<?= $class ?> style="height: <?= abs($close - $open) ?>vh;">
-                    <?= $close_low ? popover('close', $close) : popover('open', $open) ?>
-                </div>
-                <div class="<?= $class ?> line" style="height: <?= $close_low ? abs($low - $close) : abs($low - $open) ?>vh;">
-                    <?= popover('low', $low) ?>
-                </div>
-            </div>
-        <?php
-            $x += 1;
-        endforeach
-        ?>
-    </section>
+    <header>
+        <h1>Miko Market</h1>
+        <form hx-post="#" hx-swap="outerHTML" hx-target="#candles">
+            <label>
+                <span>Number of candles:</span>
+                <input type="number" name="num_candles" value="<?= $num_candles ?>">
+            </label>
+            <button>Submit</button>
+        </form>
+        <button class="simulation">Start Simulation</button>
+        <button class="simulation">Stop Simulation</button>
+    </header>
+    <?= require 'candles.php'; ?>
 </body>
 
 </html>
