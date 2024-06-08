@@ -57,6 +57,7 @@ if (isset($_POST['num_candles'])) {
             color: #fff;
             padding: 1em;
             position: sticky;
+            margin-bottom: 1em;
             top: 0;
         }
 
@@ -78,10 +79,6 @@ if (isset($_POST['num_candles'])) {
             cursor: pointer;
         }
 
-        header *:hover {
-            color: yellowgreen;
-        }
-
         label {
             cursor: pointer;
         }
@@ -90,8 +87,11 @@ if (isset($_POST['num_candles'])) {
             margin-top: 1em;
         }
 
+        header *:hover {
+            color: yellowgreen;
+        }
+
         #candles {
-            min-height: 100vh;
             scroll-snap-type: x mandatory;
             white-space: nowrap;
             overflow-x: scroll;
@@ -116,7 +116,6 @@ if (isset($_POST['num_candles'])) {
             height: 40vh;
             margin: 0 1vw;
             display: inline-block;
-            position: relative;
             overflow: visible;
             cursor: pointer;
             white-space: normal;
@@ -186,7 +185,7 @@ if (isset($_POST['num_candles'])) {
         <button class="simulation">Start Simulation</button>
         <button class="simulation">Stop Simulation</button>
     </header>
-    <?= require 'candles.php'; ?>
+    <?php require 'candles.php'; ?>
 </body>
 
 </html>

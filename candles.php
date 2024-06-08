@@ -13,9 +13,6 @@ if (isset($_GET['start'])) {
 
 <section id='candles'>
     <?php
-    $x = 0;
-    $y = 30;
-
     function popover($name, $value)
     {
         $title = ucfirst($name);
@@ -41,7 +38,7 @@ if (isset($_GET['start'])) {
         $close_low = !$close_high;
         $class = $close_high ? 'candle-green' : 'candle-red';
     ?>
-        <div class="candle" style="top: <?= $y ?>vh; left: <?= $x ?>vw;">
+        <div class="candle">
             <?php
             echo candle_part($high, $class . ' line', $close_high ? abs($high - $close) : abs($high - $open), ['high' => $high]);
 
@@ -52,8 +49,5 @@ if (isset($_GET['start'])) {
             echo candle_part($low, $class . ' line', $close_low ? abs($low - $close) : abs($low - $open), ['low' => $low]);
             ?>
         </div>
-    <?php
-        $x += 1;
-    endforeach
-    ?>
+    <?php endforeach ?>
 </section>
