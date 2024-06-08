@@ -16,7 +16,7 @@ if ($start) {
     if ($simulate) {
         $button = '
             <button
-            class="simulation"
+            class="simulating"
             hx-get="/candles.php?simulate=false"
             hx-swap="outerHTML"
             >

@@ -44,7 +44,7 @@
             cursor: pointer;
         }
 
-        button.simulation {
+        button.simulation, button.simulating {
             margin-top: 1em;
         }
 
@@ -69,7 +69,7 @@
             z-index: 100;
         }
 
-        header:has(.simulation div) + #candles {
+        header:has(.simulating) + #candles {
             scroll-snap-type: x mandatory;
         }
 
@@ -145,7 +145,7 @@
         <form hx-get="/candles.php" hx-swap="outerHTML" hx-target="#candles">
             <label>
                 <span>Number of candles:</span>
-                <input type="number" name="num_candles" value="<?= $num_candles ?>">
+                <input type="number" min="1" max="10000" name="num_candles" value="<?= $num_candles ?>">
             </label>
             <button>Submit</button>
         </form>
