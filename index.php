@@ -48,8 +48,30 @@
             margin-top: 1em;
         }
 
+        button.call, button.put {
+            margin: 0 0.5em;
+            padding: 0.5em;
+            border: 1px solid #000;
+            border-radius: 0.5em;
+            cursor: pointer;
+        }
+
+        button.call {
+            background-color: #0f0;
+            color: #000;
+        }
+
+        button.put {
+            background-color: #f00;
+            color: #fff;
+        }
+
         header *:hover {
             color: yellowgreen;
+        }
+
+        header:has(.simulating) + #candles {
+            scroll-snap-type: x mandatory;
         }
 
         #candles {
@@ -58,7 +80,7 @@
             overflow-y: visible;
         }
 
-        #start {
+        #call, #put {
             position: absolute;
             white-space: nowrap;
             font-size: 1.5em;
@@ -67,10 +89,6 @@
             text-shadow: 0 0 10px #000;
             color: yellowgreen;
             z-index: 100;
-        }
-
-        header:has(.simulating) + #candles {
-            scroll-snap-type: x mandatory;
         }
 
         .candle,
@@ -145,7 +163,7 @@
         <form hx-get="/candles.php" hx-swap="outerHTML" hx-target="#candles">
             <label>
                 <span>Number of candles:</span>
-                <input type="number" min="1" max="10000" name="num_candles" value="<?= $num_candles ?>">
+                <input type="number" min="1" max="10000" name="num_candles" value="10">
             </label>
             <button>Submit</button>
         </form>

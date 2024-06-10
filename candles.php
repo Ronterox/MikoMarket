@@ -1,15 +1,32 @@
 <?php
 
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    return;
+}
+
 $max = 15;
 $num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?: 10;
 
-$start = filter_input(INPUT_GET, 'start', FILTER_VALIDATE_INT);
+$call = filter_input(INPUT_GET, 'call', FILTER_VALIDATE_INT);
+$put = filter_input(INPUT_GET, 'put', FILTER_VALIDATE_INT);
 $simulate = filter_input(INPUT_GET, 'simulate', FILTER_VALIDATE_BOOLEAN);
 
-if ($start) {
+if ($call || $put) {
+    $id = $call ? 'call' : 'put';
+    $value = $call ?? $put;
+    $title = ucfirst($id);
+
+    $event = 'setBuy';
+    $url = __FILE__;
+    header("HX-Trigger: {$event}");
+
     echo "
-    <div id='start'>
-        <h1>Start: {$start}</h1>
+    <div
+        id='{$id}'
+        hx-delete='#'
+        hx-trigger='{$event} from:body'
+        hx-swap='delete'>
+        <h1>{$title}: {$value}</h1>
     </div>";
     return;
 } elseif ($simulate !== null) {
@@ -61,7 +78,6 @@ function rnglow(): int
     return rand(-$max + 2, -$max);
 }
 
-
 $highs = array_map('rnghigh', range(1, $num_candles));
 $lows = array_map('rnglow', range(1, $num_candles));
 $closes = array_map('rng', range(1, $num_candles));
@@ -78,18 +94,31 @@ $candles = array_map(function ($high, $low, $open, $close) {
     function popover($name, $value)
     {
         $title = ucfirst($name);
-        return "<div class='popover'><h1>{$title}: {$value}</h1></div>";
+        return "
+        <div class='popover'>
+            <h1>{$title}: {$value}</h1>
+            <button
+                hx-get='/candles.php?call={$value}'
+                hx-target='closest .candle-part'
+                hx-swap='beforeend'
+                class='call'>
+                Call
+            </button>
+            <button
+                hx-get='/candles.php?put={$value}'
+                hx-target='closest .candle-part'
+                hx-swap='beforeend'
+                class='put'>
+                Put
+            </button>
+        </div>";
     }
 
-    function candle_part(int $get_value, string $class, int $height, array $popover)
+    function candle_part(string $class, int $height, array $popover)
     {
         $popover = array_map(fn ($name, $value) => popover($name, $value), array_keys($popover), $popover);
         return "
-        <div
-            hx-get='/candles.php?start={$get_value}'
-            hx-swap='beforeend'
-            class='{$class}'
-            style='height: {$height}vh;'>
+        <div class='{$class} candle-part' style='height: {$height}vh;'>
             " . implode('', $popover) . "
         </div>";
     }
@@ -102,13 +131,13 @@ $candles = array_map(function ($high, $low, $open, $close) {
     ?>
         <div class="candle">
             <?php
-            echo candle_part($high, $class . ' line', $close_high ? abs($high - $close) : abs($high - $open), ['high' => $high]);
+            echo candle_part($class . ' line', $close_high ? abs($high - $close) : abs($high - $open), ['high' => $high]);
 
-            $candle_open = candle_part($open, $class, abs($close - $open) + 1, ['open' => $open]);
-            $candle_close = candle_part($close, $class, abs($open - $close) + 1, ['close' => $close]);
+            $candle_open = candle_part($class, abs($close - $open) + 1, ['open' => $open]);
+            $candle_close = candle_part($class, abs($open - $close) + 1, ['close' => $close]);
             echo $close_high ? $candle_close . $candle_open : $candle_open . $candle_close;
 
-            echo candle_part($low, $class . ' line', $close_low ? abs($low - $close) : abs($low - $open), ['low' => $low]);
+            echo candle_part($class . ' line', $close_low ? abs($low - $close) : abs($low - $open), ['low' => $low]);
             ?>
         </div>
     <?php endforeach ?>
