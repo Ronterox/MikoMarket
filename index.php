@@ -1,3 +1,7 @@
+<?php
+$default_candles = 10;
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -174,11 +178,21 @@
         <form hx-get="/candles.php" hx-swap="outerHTML" hx-target="#candles">
             <label>
                 <span>Number of candles:</span>
-                <input type="number" min="1" max="10000" name="num_candles" value="10">
+                <input type="number" min="1" max="10000" name="num_candles" value="<?= $default_candles ?>">
             </label>
-            <button>Submit</button>
+            <button>Update Candles</button>
         </form>
-        <button class="simulation" hx-get="/candles.php?simulate=true" hx-swap="outerHTML">Start Simulation</button>
+        <form hx-post='/candles.php' hx-target="find button" hx-swap="outerHTML">
+            <label>
+                <span>Update Speed (sec):</span>
+                <input type="number" step="0.01" min="0.1" max="5" name="speed" value="1">
+            </label>
+            <label>
+                <span>Initial Invesment:</span>
+                <input type="number" min="1" max="100" name="investment" value="50">
+            </label>
+            <button class="simulation" name="simulate" value="true">Start Simulation</button>
+        </form>
     </header>
     <?php require 'candles.php'; ?>
 </body>
