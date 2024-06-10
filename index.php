@@ -44,11 +44,13 @@
             cursor: pointer;
         }
 
-        button.simulation, button.simulating {
+        button.simulation,
+        button.simulating {
             margin-top: 1em;
         }
 
-        button.call, button.put {
+        button.call,
+        button.put {
             margin: 0 0.5em;
             padding: 0.5em;
             border: 1px solid #000;
@@ -70,7 +72,7 @@
             color: yellowgreen;
         }
 
-        header:has(.simulating) + #candles {
+        header:has(.simulating)~#candles {
             scroll-snap-type: x mandatory;
         }
 
@@ -80,7 +82,8 @@
             overflow-y: visible;
         }
 
-        #call, #put {
+        #call,
+        #put {
             position: absolute;
             white-space: nowrap;
             font-size: 1.5em;
@@ -89,6 +92,14 @@
             text-shadow: 0 0 10px #000;
             color: yellowgreen;
             z-index: 100;
+        }
+
+        #money {
+            font-size: 1.5em;
+            text-align: center;
+            padding: 1em;
+            text-shadow: 0 0 10px #000;
+            color: yellowgreen;
         }
 
         .candle,

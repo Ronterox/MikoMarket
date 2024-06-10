@@ -31,32 +31,32 @@ if ($call || $put) {
     return;
 } elseif ($simulate !== null) {
     if ($simulate) {
-        $button = '
-            <button
-            class="simulating"
-            hx-get="/candles.php?simulate=false"
-            hx-swap="outerHTML"
-            >
-                Stop Simulation
-                <div
-                hx-get="/candles.php?num_candles=1"
-                hx-target="#candles"
-                hx-swap="beforeend"
-                hx-select="#candles > .candle"
-                hx-trigger="every 1s"
-                ></div>
-            </button>
+        echo '
+        <button
+        class="simulating"
+        hx-get="/candles.php?simulate=false"
+        hx-swap="outerHTML"
+        >
+            Stop Simulation
+            <div
+            hx-get="/candles.php?num_candles=1"
+            hx-target="#candles"
+            hx-swap="beforeend"
+            hx-select="#candles > .candle"
+            hx-trigger="every 1s"
+            ></div>
+        </button>
         ';
     } else {
-        $button = '
-            <button
+        echo '
+        <button
             class="simulation"
             hx-get="/candles.php?simulate=true"
-            hx-swap="outerHTML"
-            >Start Simulation</button>
+            hx-swap="outerHTML">
+            Start Simulation
+        </button>
         ';
     }
-    echo $button;
     return;
 }
 
@@ -89,6 +89,7 @@ $candles = array_map(function ($high, $low, $open, $close) {
 
 ?>
 
+<h1 id='money' hx-swap-oob='true'>Winnings: <?= end($closes) ?></h1>
 <section id='candles'>
     <?php
     function popover($name, $value)
