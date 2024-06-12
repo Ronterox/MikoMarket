@@ -18,8 +18,8 @@
         return "
         <div class='popover'>
             <h1>{$name}: {$value}</h1>
-            " . orderButton('call', $value) ."
-            " . orderButton('put', $value) ."
+            " . orderButton('call', $value) . "
+            " . orderButton('put', $value) . "
         </div>";
     }
 
@@ -38,8 +38,8 @@
         $close_low = !$close_high;
         $class = $close_high ? 'candle-green' : 'candle-red';
     ?>
-        <div class="candle">
-            <?php
+    <div class="candle">
+        <?php
             echo candle_part($class . ' line', $close_high ? abs($high - $close) : abs($high - $open), ['High' => $high]);
 
             $candle_open = candle_part($class, abs($close - $open) + 1, ['Open' => $open]);
@@ -48,6 +48,12 @@
 
             echo candle_part($class . ' line', $close_low ? abs($low - $close) : abs($low - $open), ['Low' => $low]);
             ?>
-        </div>
+    </div>
     <?php endforeach ?>
 </section>
+
+@block order-tag
+<div id='{{ $id }}' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
+    <h1>{{ $title }}: {{ $value }}</h1>
+</div>
+@endblock

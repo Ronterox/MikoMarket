@@ -2,94 +2,60 @@
 
 require_once 'view.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-    return;
+switch ($_SERVER['REQUEST_METHOD']) {
+    case 'GET':
+        $call = filter_input(INPUT_GET, 'call', FILTER_VALIDATE_INT);
+        $put = filter_input(INPUT_GET, 'put', FILTER_VALIDATE_INT);
+
+        if ($call || $put) {
+            $id = $call ? 'call' : 'put';
+            $value = $call ?? $put;
+            $title = ucfirst($id);
+            $event = 'setOrder';
+
+            header("HX-Trigger: {$event}");
+            view('candles', compact('id', 'value', 'title', 'event'), 'order-tag');
+        } else {
+            $max_value = 15;
+            $num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?? 10;
+
+            $rng = function () use ($max_value) {
+                return rand(-$max_value, $max_value - 1) + 1;
+            };
+
+            $rnghigh = function () use ($max_value) {
+                return rand($max_value - 2, $max_value);
+            };
+
+            $rnglow = function () use ($max_value) {
+                return rand(-$max_value + 2, -$max_value);
+            };
+
+            $candle_parts = function (callable $function) use ($num_candles): array {
+                return array_map($function, range(1, $num_candles));
+            };
+
+            $highs = $candle_parts($rnghigh);
+            $lows = $candle_parts($rnglow);
+            $closes = $candle_parts($rng);
+            $opens = $candle_parts($rng);
+
+            $candles = array_map(function ($high, $low, $open, $close) {
+                return compact('high', 'low', 'open', 'close');
+            }, $highs, $lows, $opens, $closes);
+
+            view('candles', compact('candles', 'closes'));
+        }
+        break;
+    case 'POST':
+        $speed = filter_input(INPUT_POST, 'speed', FILTER_VALIDATE_FLOAT);
+        $simulate = filter_input(INPUT_POST, 'simulate', FILTER_VALIDATE_BOOLEAN);
+        if ($simulate) {
+            view('index', compact('speed'), 'simulating-button');
+        } else {
+            view('index', [], 'simulation-button');
+        }
+        break;
+    default:
+        break;
 }
-
-global $max;
-$max = 15;
-$num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?: 10;
-
-$call = filter_input(INPUT_GET, 'call', FILTER_VALIDATE_INT);
-$put = filter_input(INPUT_GET, 'put', FILTER_VALIDATE_INT);
-$simulate = filter_input(INPUT_POST, 'simulate', FILTER_VALIDATE_BOOLEAN);
-
-if ($call || $put) {
-    $id = $call ? 'call' : 'put';
-    $value = $call ?? $put;
-    $title = ucfirst($id);
-
-    $event = 'setOrder';
-    $url = __FILE__;
-    header("HX-Trigger: {$event}");
-
-    echo "
-    <div
-        id='{$id}'
-        hx-delete='/candles.php'
-        hx-trigger='{$event} from:body'
-        hx-swap='delete'>
-        <h1>{$title}: {$value}</h1>
-    </div>";
-    return;
-} elseif ($simulate !== null) {
-    $speed = filter_input(INPUT_POST, 'speed', FILTER_VALIDATE_FLOAT);
-    if ($simulate) {
-        echo "
-        <button
-            class='simulating'
-            name='simulate'
-            value='false'
-        >
-            Stop Simulation
-            <div
-            hx-get='/candles.php?num_candles=1'
-            hx-target='#candles'
-            hx-swap='beforeend'
-            hx-select='#candles > .candle'
-            hx-trigger='every {$speed}s'
-            ></div>
-        </button>
-        ";
-    } else {
-        echo '
-        <button
-            class="simulation"
-            name="simulate"
-            value="true"
-        >
-            Start Simulation
-        </button>';
-    }
-    return;
-}
-
-function rng(): int
-{
-    global $max;
-    return rand(-$max, $max - 1) + 1;
-}
-
-function rnghigh(): int
-{
-    global $max;
-    return rand($max - 2, $max);
-}
-
-function rnglow(): int
-{
-    global $max;
-    return rand(-$max + 2, -$max);
-}
-
-$highs = array_map('rnghigh', range(1, $num_candles));
-$lows = array_map('rnglow', range(1, $num_candles));
-$closes = array_map('rng', range(1, $num_candles));
-$opens = array_map('rng', range(1, $num_candles));
-
-$candles = array_map(function ($high, $low, $open, $close) {
-    return compact('high', 'low', 'open', 'close');
-}, $highs, $lows, $opens, $closes);
-
-view('candles', compact('candles', 'closes'));
-
