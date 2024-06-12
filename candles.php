@@ -1,11 +1,14 @@
 <?php
 
+require_once 'view.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     return;
 }
 
+global $max;
 $max = 15;
-$num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?: $default_candles;
+$num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?: 10;
 
 $call = filter_input(INPUT_GET, 'call', FILTER_VALIDATE_INT);
 $put = filter_input(INPUT_GET, 'put', FILTER_VALIDATE_INT);
@@ -23,7 +26,7 @@ if ($call || $put) {
     echo "
     <div
         id='{$id}'
-        hx-delete='#'
+        hx-delete='/candles.php'
         hx-trigger='{$event} from:body'
         hx-swap='delete'>
         <h1>{$title}: {$value}</h1>
@@ -88,58 +91,5 @@ $candles = array_map(function ($high, $low, $open, $close) {
     return compact('high', 'low', 'open', 'close');
 }, $highs, $lows, $opens, $closes);
 
-?>
+view('candles', compact('candles', 'closes'));
 
-<h1 id='money' hx-swap-oob='true'>Winnings: <?= end($closes) ?></h1>
-<section id='candles'>
-    <?php
-    function orderButton(string $order, int $value)
-    {
-        return "
-        <button
-            hx-get='/candles.php?{$order}={$value}'
-            hx-target='closest .candle-part'
-            hx-swap='beforeend'
-            class='{$order}'>
-            " . ucfirst($order) . "
-        </button>";
-    }
-
-    function popover($name, $value)
-    {
-        return "
-        <div class='popover'>
-            <h1>{$name}: {$value}</h1>
-            " . orderButton('call', $value) ."
-            " . orderButton('put', $value) ."
-        </div>";
-    }
-
-    function candle_part(string $class, int $height, array $popover)
-    {
-        $popover = array_map(fn ($name, $value) => popover($name, $value), array_keys($popover), $popover);
-        return "
-        <div class='{$class} candle-part' style='height: {$height}vh;'>
-            " . implode('', $popover) . "
-        </div>";
-    }
-
-    foreach ($candles as $candle) :
-        extract($candle);
-        $close_high = $close > $open;
-        $close_low = !$close_high;
-        $class = $close_high ? 'candle-green' : 'candle-red';
-    ?>
-        <div class="candle">
-            <?php
-            echo candle_part($class . ' line', $close_high ? abs($high - $close) : abs($high - $open), ['High' => $high]);
-
-            $candle_open = candle_part($class, abs($close - $open) + 1, ['Open' => $open]);
-            $candle_close = candle_part($class, abs($open - $close) + 1, ['Close' => $close]);
-            echo $close_high ? $candle_close . $candle_open : $candle_open . $candle_close;
-
-            echo candle_part($class . ' line', $close_low ? abs($low - $close) : abs($low - $open), ['Low' => $low]);
-            ?>
-        </div>
-    <?php endforeach ?>
-</section>

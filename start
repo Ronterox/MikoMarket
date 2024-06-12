@@ -1,7 +1,7 @@
 #!/bin/env bash
 
 tmux-send-cmd "server" 'php -S localhost:8080'
-tmux-send-cmd "live-server" 'live-server --port=5000 --no-browser'
+tmux-send-cmd "live-server" 'live-server --port=5000 --no-browser --ignore=$PWD/cache'
 
 nvim .
 
