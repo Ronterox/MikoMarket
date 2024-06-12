@@ -171,14 +171,14 @@
 <body>
     <header>
         <h1>Miko Market</h1>
-        <form hx-get="/candles.php" hx-swap="outerHTML" hx-target="#candles">
+        <form hx-get="/candles" hx-swap="outerHTML" hx-target="#candles">
             <label>
                 <span>Number of candles:</span>
                 <input type="number" min="1" max="10000" name="num_candles" value={{ $num_candles }} />
             </label>
             <button>Update Candles</button>
         </form>
-        <form hx-post='/candles.php' hx-target="find button" hx-swap="outerHTML">
+        <form hx-post='/candles' hx-target="find button" hx-swap="outerHTML">
             <label>
                 <span>Update Speed (sec):</span>
                 <input type="number" step="0.01" min="0.1" max="5" name="speed" value="1" />
@@ -190,7 +190,7 @@
             @render simulation-button
         </form>
     </header>
-    @require 'candles.php'
+    @require candles.php
 </body>
 
 </html>
@@ -202,7 +202,7 @@
 @block simulating-button
 <button class='simulating' name='simulate' value='false'>
     <div
-        hx-get='/candles.php?num_candles=1'
+        hx-get='/candles?num_candles=1'
         hx-target='#candles'
         hx-swap='beforeend'
         hx-select='#candles > .candle'

@@ -19,21 +19,10 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $max_value = 15;
             $num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?? 10;
 
-            $rng = function () use ($max_value) {
-                return rand(-$max_value, $max_value - 1) + 1;
-            };
-
-            $rnghigh = function () use ($max_value) {
-                return rand($max_value - 2, $max_value);
-            };
-
-            $rnglow = function () use ($max_value) {
-                return rand(-$max_value + 2, -$max_value);
-            };
-
-            $candle_parts = function (callable $function) use ($num_candles): array {
-                return array_map($function, range(1, $num_candles));
-            };
+            $rng = fn () => rand(-$max_value, $max_value - 1) + 1;
+            $rnghigh = fn () => rand($max_value - 2, $max_value);
+            $rnglow = fn () => rand(-$max_value + 2, -$max_value);
+            $candle_parts = fn ($function) => array_map($function, range(1, $num_candles));
 
             $highs = $candle_parts($rnghigh);
             $lows = $candle_parts($rnglow);
