@@ -7,7 +7,8 @@ function view(string $filename, array $data = [], string $block = null)
 
     $patterns = [
         '/{{\s*(.+?)\s*}}/' => '<?= $1 ?>', // {{ $var }}
-        '/@require\s+(.+)/' => '<?php require "routes/$1"; ?>', // @require 'file'
+        '/@require\s+[\'"](.+)[\'"]/' => '<?php require "routes/$1"; ?>', // @require 'file'
+        '/@import\s+[\'"](.+)[\'"]/' => '<?php include "css/$1"; include "css/#$1"; include "css/_$1"; ?>', // @require 'file'
         '/@block\s+.+?@endblock/s' => '', // @block ... @endblock
         '/@foreach\s+(.+?)\s+in\s+(.+?)[\r\n]+(.+?)@endforeach/s' => '<?php foreach($2 as $1): extract($1); ?>$3<?php endforeach; ?>', // @foreach $var in $array ... @endforeach
     ];
@@ -25,7 +26,6 @@ function view(string $filename, array $data = [], string $block = null)
     }
 
     $html = preg_replace(array_keys($patterns), array_values($patterns), $html);
-
 
     @mkdir(__DIR__ . '/cache');
     file_put_contents($cache, $html);

@@ -1,0 +1,25 @@
+#candles {
+    white-space: nowrap;
+    overflow-x: scroll;
+    overflow-y: visible;
+}
+
+#call,
+#put {
+    position: absolute;
+    white-space: nowrap;
+    font-size: 1.5em;
+    text-align: center;
+    padding: 1em;
+    text-shadow: 0 0 10px #000;
+    color: yellowgreen;
+    z-index: 100;
+}
+
+#money {
+    font-size: 1.5em;
+    text-align: center;
+    padding: 1em;
+    text-shadow: 0 0 10px #000;
+    color: yellowgreen;
+}

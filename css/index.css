@@ -1,0 +1,69 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+}
+
+header {
+    background-color: #000;
+    font-size: 1.2em;
+    text-align: center;
+    color: #fff;
+    padding: 1em;
+    position: sticky;
+    margin-bottom: 1em;
+    top: 0;
+}
+
+header input {
+    width: 5em;
+    margin: 0 1em;
+    font-size: 1em;
+    border: 1px solid #000;
+    border-radius: 0.5em;
+    padding: 0.5em;
+}
+
+header button {
+    font-size: 1em;
+    border: 1px solid #000;
+    border-radius: 0.5em;
+    padding: 0.5em;
+    background-color: #fff;
+    cursor: pointer;
+}
+
+label {
+    cursor: pointer;
+}
+
+button.simulation,
+button.simulating {
+    margin-top: 1em;
+}
+
+button.call,
+button.put {
+    margin: 0 0.5em;
+    padding: 0.5em;
+    border: 1px solid #000;
+    border-radius: 0.5em;
+    cursor: pointer;
+}
+
+button.call {
+    background-color: #0f0;
+    color: #000;
+}
+
+button.put {
+    background-color: #f00;
+    color: #fff;
+}
+
+header *:hover {
+    color: yellowgreen;
+}
+
+header:has(.simulating)~#candles {
+    scroll-snap-type: x mandatory;
+}

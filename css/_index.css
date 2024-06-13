@@ -1,0 +1,63 @@
+.candle,
+.candle-red,
+.candle-green {
+    width: 10vw;
+    height: 40vh;
+    margin: 0 1vw;
+    display: inline-block;
+    position: relative;
+    overflow: visible;
+    cursor: pointer;
+    white-space: normal;
+}
+
+.candle-red {
+    background-color: #f00;
+}
+
+.candle-green {
+    background-color: #0f0;
+}
+
+.line {
+    width: 0.5vw;
+    margin: 0 45%;
+}
+
+.popover {
+    top: -50%;
+    left: 50%;
+    position: absolute;
+    white-space: nowrap;
+    background-color: #fff;
+    border: 1px solid #000;
+    padding: 1em;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+
+.candle:hover:nth-of-type(2n) .popover {
+    right: 50%;
+    left: auto;
+}
+
+.candle-red:hover,
+.candle-green:hover {
+    opacity: 1 !important;
+    box-shadow: 0 0 10px 8px #000;
+}
+
+.candle:hover .candle-red,
+.candle:hover .candle-green {
+    opacity: 0.5;
+}
+
+.candle-red:hover .popover,
+.candle-green:hover .popover {
+    opacity: 1;
+}
+
+.candle:last-child {
+    scroll-snap-align: end;
+}
