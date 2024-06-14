@@ -54,12 +54,17 @@ function view(string $filename, array $data = [], string $block = null)
         '/@import\s+[\'"](.+)[\'"]/' => '<?php include "css/$1"; include "css/#$1"; include "css/_$1"; ?>', // @require 'file'
         '/@block\s+.+?@endblock/s' => '', // @block ... @endblock
         '/@foreach\s+(.+?)\s+in\s+(.+?)[\r\n]+(.+?)@endforeach/s' => '<?php foreach($2 as $1): extract($1); ?>$3<?php endforeach; ?>', // @foreach $var in $array ... @endforeach
+        '/@if\s+(.+)/' => '<?php if($1): ?>', // @if $var
+        '/@else/' => '<?php else: ?>', // @else
+        '/@endif/' => '<?php endif; ?>', // @endif
     ];
 
     $html = file_get_contents($file);
 
     $render_tags = fn ($html) => preg_replace_callback('/@render\s+([\w-]+)\s*({{.*}})*/', render($html), $html);
-    $html = $render_tags($render_tags($html));
+    while (preg_match('/@render\s+([\w-]+)\s*({{.*}})*/', $html)) {
+        $html = $render_tags($html);
+    }
 
     if ($block) {
         $found = preg_match("/@block\s+{$block}\s*(.+?)@endblock/s", $html, $match);

@@ -8,14 +8,22 @@
         $lineclass = $color_class . ' line';
         ?>
         <div class="candle">
-            <?php
-                // $candle_open = candle_part($class, abs($close - $open) + 1, ['Open' => $open]);
-                // $candle_close = candle_part($class, abs($open - $close) + 1, ['Close' => $close]);
-                // echo $close_high ? $candle_close . $candle_open : $candle_open . $candle_close;
-            ?>
+            @block candle-close
+                @render candle-part {{ $color_class }} {{ abs($open - $close) + 1 }} {{ 'Close' }} {{ $close }}
+            @endblock
+
+            @block candle-open
+                @render candle-part {{ $color_class }} {{ abs($close - $open) + 1 }} {{ 'Open' }} {{ $open }}
+            @endblock
+
             @render candle-part {{ $lineclass }} {{ $close_high ? abs($high - $close) : abs($high - $open) }} {{ 'Low' }} {{ $low }}
-            @render candle-part {{ $color_class }} {{ abs($open - $close) + 1 }} {{ 'Close' }} {{ $close }}
-            @render candle-part {{ $color_class }} {{ abs($close - $open) + 1 }} {{ 'Open' }} {{ $open }}
+            @if $close_high
+                @render candle-close
+                @render candle-open
+            @else
+                @render candle-open
+                @render candle-close
+            @endif
             @render candle-part {{ $lineclass }} {{ $close_low ? abs($low - $close) : abs($low - $open) }} {{ 'High' }} {{ $high }}
         </div>
     @endforeach
