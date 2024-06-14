@@ -37,23 +37,52 @@
         $close_high = $close > $open;
         $close_low = !$close_high;
         $class = $close_high ? 'candle-green' : 'candle-red';
+        $lineclass = $class . ' line';
         ?>
         <div class="candle">
             <?php
-                echo candle_part($class . ' line', $close_high ? abs($high - $close) : abs($high - $open), ['High' => $high]);
+                echo candle_part($lineclass, $close_high ? abs($high - $close) : abs($high - $open), ['High' => $high]);
 
                 $candle_open = candle_part($class, abs($close - $open) + 1, ['Open' => $open]);
                 $candle_close = candle_part($class, abs($open - $close) + 1, ['Close' => $close]);
                 echo $close_high ? $candle_close . $candle_open : $candle_open . $candle_close;
 
-                echo candle_part($class . ' line', $close_low ? abs($low - $close) : abs($low - $open), ['Low' => $low]);
+                echo candle_part($lineclass, $close_low ? abs($low - $close) : abs($low - $open), ['Low' => $low]);
             ?>
+            @render candle-part {{ $lineclass }} {{ abs($low - $close) }} {{ 'Low' }} {{ $low }}
+            @render candle-part {{ $class }} {{ abs($open - $close) + 1 }} {{ 'Close' }} {{ $close }}
+            @render candle-part {{ $class }} {{ abs($close - $open) + 1 }} {{ 'Open' }} {{ $open }}
+            @render candle-part {{ $lineclass }} {{ abs($high - $close) }} {{ 'High' }} {{ $high }}
         </div>
     @endforeach
 </section>
 
-@block order-tag
+@block order-tag .id .title .value .event
 <div id='{{ $id }}' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
     <h1>{{ $title }}: {{ $value }}</h1>
 </div>
+@endblock
+
+@block candle-part .class .height .name .value
+<div class='{{ $class }} candle-part' style="height: {{ $height }}vh">
+    @render popover {{ $name }} {{ $value }}
+</div>
+@endblock
+
+@block popover .name .value
+<div class='popover' _='on click hide me with opacity settle then remove @style'>
+    <h1>{{ $name }}: {{ $value }}</h1>
+    @render order-button {{ 'call' }} {{ $value }}
+    @render order-button {{ 'put' }} {{ $value }}
+</div>
+@endblock
+
+@block order-button .order .value
+<button
+    hx-get='/candles?{{ $order }}={{ $value }}'
+    hx-target='closest .candle-part'
+    hx-swap='beforeend'
+    class='{{ $order }}'>
+    {{ ucfirst($order) }}
+</button>
 @endblock

@@ -1,5 +1,42 @@
 <?php
 
+function dd($var)
+{
+    echo '<pre>';
+    print_r($var);
+    echo '</pre>';
+}
+
+function render(string $html): callable
+{
+    return function ($renders) use ($html) {
+        $blockname = $renders[1];
+
+        $found = preg_match("/@block\s+{$blockname}\s*(.+?)@endblock/s", $html, $block);
+        if (!$found) {
+            error_log("Block {$renders[1]} not found");
+            return '';
+        }
+
+        $block_declaration = preg_split('#\r?\n#', $block[1], 2)[0];
+        $block_vars = preg_match_all("/\.(\w+)*/", $block_declaration, $varnames);
+        $num_params = preg_match_all('/{{\s*(.+?)\s*}}/', $renders[2] ?? '', $params);
+
+        if ($num_params != $block_vars) {
+            error_log("Number of parameters in @render {$blockname} does not match @block {$blockname}");
+            return '';
+        }
+
+        for ($i = 0; $i < $num_params; $i++) {
+            $varname = $varnames[1][$i];
+            $param = $params[1][$i];
+            $block[1] = preg_replace("/\.{$varname}/", "<?php \${$varname}={$param} ?>", $block[1]);
+        }
+
+        return $block[1];
+    };
+}
+
 function view(string $filename, array $data = [], string $block = null)
 {
     $cache = __DIR__ . '/cache/' . md5($filename) . '.php';
@@ -15,13 +52,12 @@ function view(string $filename, array $data = [], string $block = null)
 
     $html = file_get_contents($file);
 
-    $html = preg_replace_callback('/@render\s+(.+)/', function ($renders) use ($html) {
-        preg_match("/@block\s+{$renders[1]}\s*(.+?)@endblock/s", $html, $block);
-        return $block[1];
-    }, $html);
+    $render_tags = fn ($html) => preg_replace_callback('/@render\s+([\w-]+)\s*({{.*}})*/', render($html), $html);
+    $html = $render_tags($render_tags($html));
 
     if ($block) {
         preg_match("/@block\s+{$block}\s*(.+?)@endblock/s", $html, $block);
+        if (!$block) error_log("Block {$block} not found");
         $html = $block[1];
     }
 
