@@ -39,8 +39,14 @@ function render(string $html): callable
 
 function view(string $filename, array $data = [], string $block = null)
 {
-    $cache = __DIR__ . '/cache/' . md5($filename) . '.php';
+    $cache = __DIR__ . '/cache/' . md5($filename . $block ?? '') . '.php';
     $file = __DIR__ . '/html/' . $filename . '.html';
+
+    if (file_exists($cache) && filemtime($cache) >= filemtime($file)) {
+        // echo "Cached: $cache\n";
+        extract($data);
+        return require $cache;
+    }
 
     $patterns = [
         '/{{\s*(.+?)\s*}}/' => '<?= $1 ?>', // {{ $var }}
@@ -56,9 +62,12 @@ function view(string $filename, array $data = [], string $block = null)
     $html = $render_tags($render_tags($html));
 
     if ($block) {
-        preg_match("/@block\s+{$block}\s*(.+?)@endblock/s", $html, $block);
-        if (!$block) error_log("Block {$block} not found");
-        $html = $block[1];
+        $found = preg_match("/@block\s+{$block}\s*(.+?)@endblock/s", $html, $match);
+        if (!$found) {
+            error_log("Block {$block} not found");
+            return '';
+        }
+        $html = $render_tags("@render {$block}" . $match[0]);
     }
 
     $html = preg_replace(array_keys($patterns), array_values($patterns), $html);
@@ -67,5 +76,5 @@ function view(string $filename, array $data = [], string $block = null)
     file_put_contents($cache, $html);
 
     extract($data);
-    require $cache;
+    return require $cache;
 }

@@ -1,70 +1,34 @@
 <h1 id='money' hx-swap-oob='true'>Winnings: {{ end($closes) }}</h1>
 <section id='candles'>
-    <?php
-    function orderButton(string $order, int $value)
-    {
-        return "
-        <button
-            hx-get='/candles?{$order}={$value}'
-            hx-target='closest .candle-part'
-            hx-swap='beforeend'
-            class='{$order}'>
-            " . ucfirst($order) . "
-        </button>";
-    }
-
-    function popover($name, $value)
-    {
-        return "
-        <div class='popover' _='on click hide me with opacity settle then remove @style'>
-            <h1>{$name}: {$value}</h1>
-            " . orderButton('call', $value) . "
-            " . orderButton('put', $value) . "
-        </div>";
-    }
-
-    function candle_part(string $class, int $height, array $popover)
-    {
-        $popover = array_map(fn ($name, $value) => popover($name, $value), array_keys($popover), $popover);
-        return "
-        <div class='{$class} candle-part' style='height: {$height}vh;'>
-            " . implode('', $popover) . "
-        </div>";
-    }
-    ?>
     @foreach $candle in $candles
         <?php
         $close_high = $close > $open;
         $close_low = !$close_high;
-        $class = $close_high ? 'candle-green' : 'candle-red';
-        $lineclass = $class . ' line';
+        $color_class = $close_high ? 'candle-green' : 'candle-red';
+        $lineclass = $color_class . ' line';
         ?>
         <div class="candle">
             <?php
-                echo candle_part($lineclass, $close_high ? abs($high - $close) : abs($high - $open), ['High' => $high]);
-
-                $candle_open = candle_part($class, abs($close - $open) + 1, ['Open' => $open]);
-                $candle_close = candle_part($class, abs($open - $close) + 1, ['Close' => $close]);
-                echo $close_high ? $candle_close . $candle_open : $candle_open . $candle_close;
-
-                echo candle_part($lineclass, $close_low ? abs($low - $close) : abs($low - $open), ['Low' => $low]);
+                // $candle_open = candle_part($class, abs($close - $open) + 1, ['Open' => $open]);
+                // $candle_close = candle_part($class, abs($open - $close) + 1, ['Close' => $close]);
+                // echo $close_high ? $candle_close . $candle_open : $candle_open . $candle_close;
             ?>
-            @render candle-part {{ $lineclass }} {{ abs($low - $close) }} {{ 'Low' }} {{ $low }}
-            @render candle-part {{ $class }} {{ abs($open - $close) + 1 }} {{ 'Close' }} {{ $close }}
-            @render candle-part {{ $class }} {{ abs($close - $open) + 1 }} {{ 'Open' }} {{ $open }}
-            @render candle-part {{ $lineclass }} {{ abs($high - $close) }} {{ 'High' }} {{ $high }}
+            @render candle-part {{ $lineclass }} {{ $close_high ? abs($high - $close) : abs($high - $open) }} {{ 'Low' }} {{ $low }}
+            @render candle-part {{ $color_class }} {{ abs($open - $close) + 1 }} {{ 'Close' }} {{ $close }}
+            @render candle-part {{ $color_class }} {{ abs($close - $open) + 1 }} {{ 'Open' }} {{ $open }}
+            @render candle-part {{ $lineclass }} {{ $close_low ? abs($low - $close) : abs($low - $open) }} {{ 'High' }} {{ $high }}
         </div>
     @endforeach
 </section>
 
-@block order-tag .id .title .value .event
+@block order-tag
 <div id='{{ $id }}' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
     <h1>{{ $title }}: {{ $value }}</h1>
 </div>
 @endblock
 
 @block candle-part .class .height .name .value
-<div class='{{ $class }} candle-part' style="height: {{ $height }}vh">
+<div class='{{ $class }} candle-part' style="height: {{ $height }}vh;">
     @render popover {{ $name }} {{ $value }}
 </div>
 @endblock
