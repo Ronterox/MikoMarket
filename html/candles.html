@@ -42,7 +42,7 @@
 @endblock
 
 @block popover .name .value
-<div class='popover' _='on click hide me with opacity settle then remove @style'>
+<div class='popover' _='on mousedown hide me with opacity settle then remove @style'>
     <h1>{{ $name }}: {{ $value }}</h1>
     @render order-button {{ 'call' }} {{ $value }}
     @render order-button {{ 'put' }} {{ $value }}
@@ -53,6 +53,7 @@
 <button
     hx-get='/candles?{{ $order }}={{ $value }}'
     hx-target='closest .candle-part'
+    hx-trigger='mousedown'
     hx-swap='beforeend'
     class='{{ $order }}'>
     {{ ucfirst($order) }}

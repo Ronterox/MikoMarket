@@ -34,7 +34,7 @@
     padding: 1em;
     z-index: 100;
     opacity: 0;
-    transition: opacity 0.5s;
+    transition: opacity 350ms;
 }
 
 .candle:hover:nth-of-type(2n) .popover {
