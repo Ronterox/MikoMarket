@@ -1,10 +1,21 @@
 body {
     font-family: Arial, sans-serif;
     margin: 0;
+
+    background-size: 50px 50px;
+    background-image:
+        linear-gradient(to right, #ccc 1px, transparent 1px),
+        linear-gradient(to bottom, #ccc 1px, transparent 1px);
+
+    min-height: 100vh;
 }
 
 header {
     background-color: #000;
+
+    background-size: 50px 50px;
+    background-image: radial-gradient(circle, #fff 1.5px, rgba(0, 0, 0, 0) 1px);
+
     font-size: 1.2em;
     text-align: center;
     color: #fff;
