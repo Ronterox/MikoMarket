@@ -43,9 +43,13 @@
 
 @block simulating-button
 <button class='simulating' name='simulate' value='false'>
-    <div hx-get='/candles?num_candles=1' hx-target='#candles' hx-swap='beforeend' hx-select='#candles > .candle'
+    <requester
+        hx-get='/candles?num_candles=1'
+        hx-target='#candles'
+        hx-swap='beforeend'
+        hx-select='#candles > .candle'
         hx-trigger='every {{ $speed }}s'>
         Stop Simulation
-    </div>
+    </requester>
 </button>
 @endblock

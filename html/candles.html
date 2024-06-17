@@ -1,4 +1,4 @@
-<h1 id='money' hx-swap-oob='true'>Winnings: {{ end($closes) }}</h1>
+<h1 id='money' hx-swap-oob='true'>Winnings: {{ $winnings ?? 0 }}</h1>
 <section id='candles'>
     @foreach $candle in $candles
         <?php
@@ -7,7 +7,7 @@
         $color_class = $close_high ? 'candle-green' : 'candle-red';
         $lineclass = $color_class . ' line';
         ?>
-        <div class="candle">
+        <candle class="candle">
             @block candle-close
                 @render candle-part {{ $color_class }} {{ abs($open - $close) + 1 }} {{ 'Close' }} {{ $close }}
             @endblock
@@ -25,28 +25,28 @@
                 @render candle-close
             @endif
             @render candle-part {{ $lineclass }} {{ $close_low ? abs($low - $close) : abs($low - $open) }} {{ 'High' }} {{ $high }}
-        </div>
+        </candle>
     @endforeach
 </section>
 
 @block order-tag
-<div id='{{ $id }}' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
+<order id='order' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
     <h1>{{ $title }}: {{ $value }}</h1>
-</div>
+</order>
 @endblock
 
 @block candle-part .class .height .name .value
-<div class='{{ $class }} candle-part' style="height: {{ $height }}vh;">
+<candle-part class='{{ $class }} candle-part' style="height: {{ $height }}vh;">
     @render popover {{ $name }} {{ $value }}
-</div>
+</candle-part>
 @endblock
 
 @block popover .name .value
-<div class='popover' _='on mousedown hide me with opacity settle then remove @style'>
+<popover class='popover' _='on mousedown hide me with opacity settle then remove @style'>
     <h1>{{ $name }}: {{ $value }}</h1>
     @render order-button {{ 'call' }} {{ $value }}
     @render order-button {{ 'put' }} {{ $value }}
-</div>
+</popover>
 @endblock
 
 @block order-button .order .value

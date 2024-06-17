@@ -8,13 +8,12 @@ switch ($_SERVER['REQUEST_METHOD']) {
         $put = filter_input(INPUT_GET, 'put', FILTER_VALIDATE_INT);
 
         if ($call || $put) {
-            $id = $call ? 'call' : 'put';
             $value = $call ?? $put;
-            $title = ucfirst($id);
+            $title = $call ? 'Call' : 'Put';
             $event = 'setOrder';
 
             header("HX-Trigger: {$event}");
-            view('candles', compact('id', 'value', 'title', 'event'), 'order-tag');
+            view('candles', compact('value', 'title', 'event'), 'order-tag');
         } else {
             $max_value = 15;
             $num_candles = filter_input(INPUT_GET, 'num_candles', FILTER_VALIDATE_INT) ?? 10;

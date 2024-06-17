@@ -4,8 +4,7 @@
     overflow-y: visible;
 }
 
-#call,
-#put {
+#order {
     position: absolute;
     white-space: nowrap;
     font-size: 1.5em;
