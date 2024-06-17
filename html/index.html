@@ -20,16 +20,8 @@
             </label>
             <button>Update Candles</button>
         </form>
-        <form hx-post='/candles' hx-target="find button" hx-swap="outerHTML">
-            <label>
-                <span>Update Speed (sec):</span>
-                <input type="number" step="0.01" min="0.1" max="5" name="speed" value="1" />
-            </label>
-            <label>
-                <span>Initial Invesment:</span>
-                <input type="number" min="1" max="1000000" name="investment" value="50000" />
-            </label>
-            @render simulation-button
+        <form hx-post='/candles'>
+            @render simulation-form
         </form>
     </header>
     @require 'candles.php'
@@ -37,19 +29,28 @@
 
 </html>
 
-@block simulation-button
-<button class="simulation" name="simulate" value="true">Start Simulation</button>
+@block simulation-form
+<label>
+    <span>Update Speed (sec):</span>
+    <input type="number" step="0.01" min="0.1" max="5" name="speed" value="1" />
+</label>
+<label>
+    <span>Initial Invesment:</span>
+    <input type="number" min="1" max="1000000" name="investment" value="50000" />
+</label>
+<button class='simulation' name='simulate' value='true'>Start Simulation</button>
 @endblock
 
-@block simulating-button
+@block simulating-form
+<requester
+    hx-get='/candles?num_candles=1'
+    hx-include='#order'
+    hx-target='#candles'
+    hx-swap='beforeend'
+    hx-select='#candles > .candle'
+    hx-trigger='every {{ $speed }}s'>
+</requester>
 <button class='simulating' name='simulate' value='false'>
-    <requester
-        hx-get='/candles?num_candles=1'
-        hx-target='#candles'
-        hx-swap='beforeend'
-        hx-select='#candles > .candle'
-        hx-trigger='every {{ $speed }}s'>
-        Stop Simulation
-    </requester>
+    Stop Simulation
 </button>
 @endblock

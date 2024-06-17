@@ -1,4 +1,4 @@
-<h1 id='money' hx-swap-oob='true'>Winnings: {{ $winnings ?? 0 }}</h1>
+<h1 id='money' hx-swap-oob='true'>Winnings: {{ $winnings }}</h1>
 <section id='candles'>
     @foreach $candle in $candles
         <?php
@@ -31,6 +31,7 @@
 
 @block order-tag
 <order id='order' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
+    <input type='hidden' name='order' value='{{ $value }}'>
     <h1>{{ $title }}: {{ $value }}</h1>
 </order>
 @endblock
