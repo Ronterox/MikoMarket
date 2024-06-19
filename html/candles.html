@@ -33,6 +33,7 @@
 <order id='order' hx-delete='#' hx-trigger='{{ $event }} from:body' hx-swap='delete'>
     <input type='hidden' name='order' value='{{ $value }}'>
     <h1>{{ $title }}: {{ $value }}</h1>
+    <line class='{{ strtolower($title) }}-line'></line>
 </order>
 @endblock
 

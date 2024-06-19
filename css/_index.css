@@ -24,6 +24,23 @@
     margin: 0 45%;
 }
 
+.call-line, .put-line {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 0.5vw;
+    width: 100vw;
+}
+
+.call-line {
+    background-color: blue;
+}
+
+.put-line {
+    background-color: orange;
+}
+
+
 .popover {
     top: -50%;
     left: 50%;
