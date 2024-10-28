@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "lightweight-charts": "^4.2.1"
+  },
+  "name": "mikomarket",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

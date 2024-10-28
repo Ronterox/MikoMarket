@@ -1,0 +1,33 @@
+header *:hover {
+    color: yellowgreen;
+}
+
+header:has(.simulating)~#candles {
+    scroll-snap-type: x mandatory;
+}
+
+.candle:hover:nth-of-type(2n) .popover {
+    right: 50%;
+    left: auto;
+}
+
+.candle-red:hover,
+.candle-green:hover {
+    opacity: 1 !important;
+    box-shadow: 0 0 10px 8px #000;
+}
+
+.candle:hover .candle-red,
+.candle:hover .candle-green {
+    opacity: 0.5;
+}
+
+.candle-red:hover .popover,
+.candle-green:hover .popover {
+    opacity: 1;
+}
+
+.candle:last-child {
+    scroll-snap-align: end;
+}
+

@@ -1,7 +1,5 @@
 <?php
 
-require_once 'view.php';
-
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
         $call = filter_input(INPUT_GET, 'call', FILTER_VALIDATE_INT);

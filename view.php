@@ -51,7 +51,7 @@ function view(string $filename, array $data = [], string $block = null)
     $patterns = [
         '/{{\s*(.+?)\s*}}/' => '<?= $1 ?>', // {{ $var }}
         '/@require\s+[\'"](.+)[\'"]/' => '<?php require "routes/$1"; ?>', // @require 'file'
-        '/@import\s+[\'"](.+)[\'"]/' => '<?php include "css/$1"; include "css/#$1"; include "css/_$1"; ?>', // @require 'file'
+        '/@import\s+[\'"](.+)[\'"]/' => '<?php include "css/$1"; include "css/#$1"; include "css/_$1"; include "css/~$1";?>', // @import 'file'
         '/@block\s+.+?@endblock/s' => '', // @block ... @endblock
         '/@foreach\s+(.+?)\s+in\s+(.+?)[\r\n]+(.+?)@endforeach/s' => '<?php foreach($2 as $1): extract($1); ?>$3<?php endforeach; ?>', // @foreach $var in $array ... @endforeach
         '/@if\s+(.+)/' => '<?php if($1): ?>', // @if $var
@@ -61,7 +61,7 @@ function view(string $filename, array $data = [], string $block = null)
 
     $html = file_get_contents($file);
 
-    $render_tags = fn ($html) => preg_replace_callback('/@render\s+([\w-]+)\s*({{.*}})*/', render($html), $html);
+    $render_tags = fn($html) => preg_replace_callback('/@render\s+([\w-]+)\s*({{.*}})*/', render($html), $html);
     while (preg_match('/@render\s+([\w-]+)\s*({{.*}})*/', $html)) {
         $html = $render_tags($html);
     }

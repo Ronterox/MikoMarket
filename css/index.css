@@ -43,10 +43,6 @@ header button {
     cursor: pointer;
 }
 
-label {
-    cursor: pointer;
-}
-
 button.simulation,
 button.simulating {
     margin-top: 1em;
@@ -71,10 +67,14 @@ button.put {
     color: #fff;
 }
 
-header *:hover {
-    color: yellowgreen;
+main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1em;
+    padding: 1em;
 }
 
-header:has(.simulating)~#candles {
-    scroll-snap-type: x mandatory;
+label {
+    cursor: pointer;
 }
