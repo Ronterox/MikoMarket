@@ -1,7 +1,5 @@
 <?php
 
-date_default_timezone_set("UTC");
-
 foreach (file(__DIR__ . '/../.env') as $line) {
     [$name, $val] = explode('=', $line, 2);
     $t = function($s) { return trim($s); };

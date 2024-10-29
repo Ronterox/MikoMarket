@@ -1,19 +1,8 @@
-import { createChart, type BarData, type Time } from 'lightweight-charts';
+import { ColorType, createChart, type BarData, type Time } from 'lightweight-charts';
 
 const PORT = 8080;
 const SYMBOL = 'AAPL';
 const BASE_URL = `http://localhost:${PORT}/api?symbol=${SYMBOL}`;
-
-interface Data {
-    ticker: string;
-    queryCount: number;
-    resultsCount: number;
-    adjusted: boolean;
-    results: Result[];
-    status: string;
-    request_id: string;
-    count: number;
-}
 
 interface Result {
     v: number;
@@ -26,7 +15,29 @@ interface Result {
     n: number;
 }
 
-const chart = createChart('chart', { width: 700, height: 500 });
+interface Data {
+    ticker: string;
+    queryCount: number;
+    resultsCount: number;
+    adjusted: boolean;
+    results: Result[];
+    status: string;
+    request_id: string;
+    count: number;
+}
+
+const chart = createChart('chart', {
+    width: 700, height: 500,
+    autoSize: true,
+    grid: {
+        horzLines: { color: '#222' },
+        vertLines: { color: '#222' }
+    },
+    layout: {
+        background: { color: '#001' },
+        textColor: '#ccc'
+    }
+});
 
 (async function() {
     const res = await fetch(BASE_URL);
@@ -35,7 +46,7 @@ const chart = createChart('chart', { width: 700, height: 500 });
         return;
     }
 
-    const data: Data = await res.json();
+    const data: Data = await res.json().catch(console.error);
 
     const df = data.results.map(result => ({
         time: result.t,
@@ -45,7 +56,9 @@ const chart = createChart('chart', { width: 700, height: 500 });
         close: result.c
     })) as BarData<Time>[];
 
-    chart.addBarSeries().setData(df);
+    chart.addCandlestickSeries({
+        title: data.ticker,
+    }).setData(df);
 }())
 
 
