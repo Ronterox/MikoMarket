@@ -2,9 +2,7 @@
 
 function dd($var)
 {
-    echo '<pre>';
-    print_r($var);
-    echo '</pre>';
+    die('<pre>' . print_r($var, true) . '</pre>');
 }
 
 function render(string $html): callable
