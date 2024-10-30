@@ -1,18 +1,19 @@
-import { ColorType, createChart, type BarData, type Time } from 'lightweight-charts';
+import { createChart, type BarData, type Time } from 'lightweight-charts';
+import ta from './ta';
 
 const PORT = 8080;
 const SYMBOL = 'AAPL';
 const BASE_URL = `http://localhost:${PORT}/api?symbol=${SYMBOL}`;
 
 interface Result {
-    v: number;
-    vw: number;
-    o: number;
-    c: number;
-    h: number;
-    l: number;
-    t: number;
-    n: number;
+    v: number;  // volume
+    vw: number; // volume-weighted
+    o: number;  // open
+    c: number;  // close
+    h: number;  // high
+    l: number;  // low
+    t: number;  // time
+    n: number;  // number of trades
 }
 
 interface Data {
@@ -56,9 +57,18 @@ const chart = createChart('chart', {
         close: result.c
     })) as BarData<Time>[];
 
-    chart.addCandlestickSeries({
-        title: data.ticker,
-    }).setData(df);
+    const close = df.map(d => d.close);
+    const time = df.map(d => d.time);
+
+    const sma200 = ta.SMA(close, 200);
+    const sma50 = ta.SMA(close, 50);
+
+    const line200 = time.map((t, i) => ({ time: t, value: sma200[i] }));
+    const line50 = time.map((t, i) => ({ time: t, value: sma50[i] }));
+
+    chart.addCandlestickSeries({ title: data.ticker }).setData(df);
+    chart.addLineSeries({ title: 'SMA 200', lineType: 1, color: '#0f0' }).setData(line200);
+    chart.addLineSeries({ title: 'SMA 50', lineType: 2, color: '#f00' }).setData(line50);
 }())
 
 
