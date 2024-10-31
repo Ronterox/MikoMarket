@@ -3,16 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0" />
     <style>
         @import "index.css"
+        @import "trading.css"
     </style>
     <title>Trading</title>
 </head>
 
 <body>
-    <header><h1>Welcome to trading!</h1></header>
-    <main id="chart"></main>
+    <div style="position: absolute; width: 100%; height: 100%;" id="chart"></div>
+    <p id="income">Income: 0</p>
     <script><?= `bun build js/trading.ts --minify` ?></script>
 </body>
 

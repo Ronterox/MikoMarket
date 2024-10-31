@@ -1,9 +1,13 @@
-import { createChart, type BarData, type Time } from 'lightweight-charts';
+import { createChart, CrosshairMode, LineStyle, type BarData, type LineWidth, type SeriesMarker, type Time } from 'lightweight-charts';
 import ta from './ta';
+
+const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
 
 const PORT = 8080;
 const SYMBOL = 'AAPL';
 const BASE_URL = `http://localhost:${PORT}/api?symbol=${SYMBOL}`;
+
+type Optional<T> = T | undefined;
 
 interface Result {
     v: number;  // volume
@@ -28,7 +32,6 @@ interface Data {
 }
 
 const chart = createChart('chart', {
-    width: 700, height: 500,
     autoSize: true,
     grid: {
         horzLines: { color: '#222' },
@@ -37,8 +40,28 @@ const chart = createChart('chart', {
     layout: {
         background: { color: '#001' },
         textColor: '#ccc'
-    }
+    },
+    localization: {
+        priceFormatter: (price: number) => `${price.toFixed(2)}$`,
+    },
+    crosshair: {
+        mode: CrosshairMode.Normal,
+
+        vertLine: {
+            width: 8 as LineWidth,
+            color: '#C3BCDB44',
+            style: LineStyle.Solid,
+            labelBackgroundColor: '#9B7DFF',
+        },
+
+        horzLine: {
+            color: '#9B7DFF',
+            labelBackgroundColor: '#9B7DFF',
+        },
+    },
 });
+
+$('#income').innerHTML = `Income: 0`;
 
 (async function() {
     const res = await fetch(BASE_URL);
@@ -50,7 +73,7 @@ const chart = createChart('chart', {
     const data: Data = await res.json().catch(console.error);
 
     const df = data.results.map(result => ({
-        time: result.t,
+        time: new Date(result.t).toString(),
         open: result.o,
         high: result.h,
         low: result.l,
@@ -66,8 +89,43 @@ const chart = createChart('chart', {
     const line200 = time.map((t, i) => ({ time: t, value: sma200[i] }));
     const line50 = time.map((t, i) => ({ time: t, value: sma50[i] }));
 
-    chart.addCandlestickSeries({ title: data.ticker }).setData(df);
-    chart.addLineSeries({ title: 'SMA 200', lineType: 1, color: '#0f0' }).setData(line200);
+    const series = chart.addCandlestickSeries({ title: data.ticker });
+    series.setData(df);
+    series.applyOptions({
+        wickUpColor: 'rgb(54, 116, 217)',
+        upColor: 'rgb(54, 116, 217)',
+        wickDownColor: 'rgb(225, 50, 85)',
+        downColor: 'rgb(225, 50, 85)',
+        borderVisible: false,
+    });
+
+    function call(cond: boolean, time: Time): Optional<SeriesMarker<Time>> {
+        if (!cond) return;
+        return { time, position: 'belowBar', color: '#0f0', shape: 'arrowUp', text: 'Call' };
+    }
+
+    function put(cond: boolean, time: Time): Optional<SeriesMarker<Time>> {
+        if (!cond) return;
+        return { time, position: 'aboveBar', color: '#f00', shape: 'arrowDown', text: 'Put' };
+    }
+
+    function setMarkers(markers: Optional<SeriesMarker<Time>>[]) {
+        const checkCondition = (m: Optional<SeriesMarker<Time>>, i: number) => m && !markers[Math.max(0, i - 1)];
+        series.setMarkers(markers.filter(checkCondition) as SeriesMarker<Time>[]);
+    }
+
+    const range = (n: number, evaluate: (i: number) => any) => Array.from({ length: n }, (_, i) => evaluate(i));
+
+    const calls = range(df.length, i => call(sma50[i] > sma200[i], time[i]));
+    const puts = range(df.length, i => put(sma50[i] < sma200[i], time[i]));
+
+    const buys = calls.filter((m, i) => m && !calls[Math.max(0, i - 1)]);
+    const sells = puts.filter((m, i) => m && !puts[Math.max(0, i - 1)]);
+
+    // setMarkers([...calls, ...puts]);
+    series.setMarkers([...buys]);
+
+    chart.addLineSeries({ title: 'SMA 200', lineType: 2, color: '#0f0' }).setData(line200);
     chart.addLineSeries({ title: 'SMA 50', lineType: 2, color: '#f00' }).setData(line50);
 }())
 

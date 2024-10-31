@@ -14,7 +14,7 @@ $base_url = 'https://api.polygon.io/v2/aggs/ticker';
 $start_date = '2023-01-09';
 $end_date = date('Y-m-d');
 
-$req = "$base_url/$symbol/range/1/day/$start_date/$end_date?apiKey=$api_key";
+$req = "$base_url/$symbol/range/1/day/$start_date/$end_date?adjusted=false&apiKey=$api_key";
 $cache = __DIR__ . '/../cache/' . md5($req) . '.json';
 
 if (!file_exists($cache)) {

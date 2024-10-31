@@ -1,0 +1,10 @@
+p {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 1em;
+    z-index: 100;
+    font-size: 1.5em;
+    text-shadow: 0 0 10px #000;
+    color: yellowgreen;
+}
