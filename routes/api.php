@@ -1,30 +1,34 @@
 <?php
 
-foreach (file(__DIR__ . '/../.env') as $line) {
-    [$name, $val] = explode('=', $line, 2);
-    $t = function($s) { return trim($s); };
-    putenv("{$t($name)}={$t($val)}");
-}
+$bd = new SQLite3(CACHE . 'data.db');
+$bd->exec('CREATE TABLE IF NOT EXISTS queries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT NOT NULL,
+    data TEXT
+)');
 
 $symbol = filter_var($_GET['symbol'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-$api_key = getenv('POLYGON_API_KEY');
+$api_key = POLYGON_API_KEY;
 $base_url = 'https://api.polygon.io/v2/aggs/ticker';
 
 $start_date = '2023-01-09';
 $end_date = date('Y-m-d');
 
 $req = "$base_url/$symbol/range/1/day/$start_date/$end_date?adjusted=false&apiKey=$api_key";
-$cache = __DIR__ . '/../cache/' . md5($req) . '.json';
+$res = $bd->query('SELECT data FROM queries WHERE query = "' . $req . '"') or die($bd->lastErrorMsg());
 
-if (!file_exists($cache)) {
+$row = $res->fetchArray();
+
+if (!$row) {
     $json = file_get_contents($req);
-    file_put_contents($cache, $json) or die('Cache failed');
+    $bd->exec("INSERT INTO queries (query, data) VALUES ('$req', '$json')") or die($bd->lastErrorMsg());
 } else {
-    $json = file_get_contents($cache);
+    $json = $row['data'];
     header('Cache-Control: max-age=86400');
 }
 
+$bd->close();
 $data = json_decode($json, true);
 
 header('Content-Type: application/json');

@@ -61,7 +61,7 @@ const chart = createChart('chart', {
     },
 });
 
-$('#income').innerHTML = `Income: 0`;
+$('#income').innerHTML = `Income: 985`;
 
 (async function() {
     const res = await fetch(BASE_URL);
