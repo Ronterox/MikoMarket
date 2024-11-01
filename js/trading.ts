@@ -3,6 +3,8 @@ import ta from './ta';
 
 const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
 
+$('#income').innerHTML = `Income: 985`;
+
 const PORT = 8080;
 const SYMBOL = 'AAPL';
 const BASE_URL = `http://localhost:${PORT}/api?symbol=${SYMBOL}`;
@@ -61,7 +63,9 @@ const chart = createChart('chart', {
     },
 });
 
-$('#income').innerHTML = `Income: 985`;
+// 2% is 20% for us
+const LOSS = 0.02;
+const WIN = 0.02;
 
 (async function() {
     const res = await fetch(BASE_URL);
@@ -114,13 +118,45 @@ $('#income').innerHTML = `Income: 985`;
         series.setMarkers(markers.filter(checkCondition) as SeriesMarker<Time>[]);
     }
 
-    const range = (n: number, evaluate: (i: number) => any) => Array.from({ length: n }, (_, i) => evaluate(i));
+    const range = <T>(n: number, evaluate: (i: number) => T) => Array.from({ length: n }, (_, i) => evaluate(i));
 
     const calls = range(df.length, i => call(sma50[i] > sma200[i], time[i]));
     const puts = range(df.length, i => put(sma50[i] < sma200[i], time[i]));
 
-    const buys = calls.filter((m, i) => m && !calls[Math.max(0, i - 1)]);
-    const sells = puts.filter((m, i) => m && !puts[Math.max(0, i - 1)]);
+    const buys = calls.filter((m, i) => m && !calls[Math.max(0, i - 1)]) as SeriesMarker<Time>[];
+    const sells = puts.filter((m, i) => m && !puts[Math.max(0, i - 1)]) as SeriesMarker<Time>[];
+
+    const { income, wins, losses } = df.reduce(({ income, curr: { method, price }, wins, losses }, d) => {
+        if (method) {
+            const gains = method === 'call' ? d.close - price : price - d.close;
+            const limit_hit = gains >= price * WIN || gains <= price * LOSS;
+
+            if (limit_hit) {
+                method = '';
+                income += gains * +limit_hit;
+                wins += +(gains > 0);
+                losses += +(gains <= 0);
+            }
+
+            return { income, curr: { method, price }, wins, losses };
+        }
+
+        const call = buys.find(m => m && m.time === d.time);
+        const put = sells.find(m => m && m.time === d.time);
+
+        let curr;
+        if (call) {
+            curr = { method: 'call', price: d.close };
+        } else if (put) {
+            curr = { method: 'put', price: d.close };
+        } else {
+            curr = { method: '', price: 0 };
+        }
+
+        return { income, curr, wins, losses };
+    }, { income: 0, curr: { method: '', price: 0 }, wins: 0, losses: 0 });
+
+    $('#income').innerHTML = `Income: ${income.toFixed(2)}, Wins: ${wins}, Losses: ${losses}`;
 
     // setMarkers([...calls, ...puts]);
     series.setMarkers([...buys]);
