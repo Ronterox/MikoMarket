@@ -1,0 +1,5 @@
+{
+    "require": {
+        "lupecode/php-trader-native": "^2.1"
+    }
+}

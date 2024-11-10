@@ -1,37 +1,24 @@
-import { createChart, CrosshairMode, LineStyle, type BarData, type LineWidth, type SeriesMarker, type Time } from 'lightweight-charts';
-import ta from './ta';
+import { createChart, CrosshairMode, LineStyle, type CandlestickData, type LineData, type LineWidth, type SeriesMarker, type Time } from 'lightweight-charts';
 
 const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
-
 $('#income').innerHTML = `Income: 985`;
 
 const PORT = 8080;
 const SYMBOL = 'AAPL';
 const BASE_URL = `http://localhost:${PORT}/api?symbol=${SYMBOL}`;
 
-type Optional<T> = T | undefined;
-
-interface Result {
-    v: number;  // volume
-    vw: number; // volume-weighted
-    o: number;  // open
-    c: number;  // close
-    h: number;  // high
-    l: number;  // low
-    t: number;  // time
-    n: number;  // number of trades
+type DataFrame = {
+    time: Time[];
+    open: number[];
+    high: number[];
+    low: number[];
+    close: number[];
 }
-
-interface Data {
-    ticker: string;
-    queryCount: number;
-    resultsCount: number;
-    adjusted: boolean;
-    results: Result[];
-    status: string;
-    request_id: string;
-    count: number;
-}
+    &
+{
+    sma50: number[];
+    sma200: number[]
+};
 
 const chart = createChart('chart', {
     autoSize: true,
@@ -63,9 +50,41 @@ const chart = createChart('chart', {
     },
 });
 
-// 2% is 20% for us
-const LOSS = 0.02;
-const WIN = 0.02;
+interface Functionalities {
+    put(cond: boolean): SeriesMarker<Time> | undefined
+    call(cond: boolean): SeriesMarker<Time> | undefined
+
+    zip<T>(arr: (i: number) => T): T[]
+    firstOf<T>(alert: (i: number) => T): SeriesMarker<Time>[]
+}
+
+function loadChart({ open, high, low, close, sma50, sma200 }: DataFrame, { call, put, zip, firstOf }: Functionalities) {
+    const df = (i: number) => ({ open: open[i], high: high[i], low: low[i], close: close[i] });
+
+    const line200 = (i: number) => ({ value: sma200[i] });
+    const line50 = (i: number) => ({ value: sma50[i] });
+
+    const calls = (i: number) => call(sma50[i] > sma200[i]);
+    const puts = (i: number) => put(sma50[i] < sma200[i]);
+
+    // TODO: bars
+    const series = chart.addCandlestickSeries({ title: SYMBOL });
+    series.applyOptions({
+        wickUpColor: 'rgb(54, 116, 217)',
+        upColor: 'rgb(54, 116, 217)',
+        wickDownColor: 'rgb(225, 50, 85)',
+        downColor: 'rgb(225, 50, 85)',
+        borderVisible: false,
+    });
+    series.setData(zip(df) as CandlestickData<Time>[]);
+
+    // TODO: alert
+    series.setMarkers(firstOf(calls).concat(firstOf(puts)));
+
+    // TODO: line
+    chart.addLineSeries({ title: 'SMA 200', lineType: 2, color: '#0A5' }).setData(zip(line200) as LineData<Time>[]);
+    chart.addLineSeries({ title: 'SMA 50', lineType: 2, color: '#f05' }).setData(zip(line50) as LineData<Time>[]);
+}
 
 (async function() {
     const res = await fetch(BASE_URL);
@@ -74,95 +93,36 @@ const WIN = 0.02;
         return;
     }
 
-    const data: Data = await res.json().catch(console.error);
+    const data: DataFrame = await res.json().catch(console.error);
+    const zip = <T>(arr: (i: number) => T) => data.time.map((t, i) => ({ time: t, ...arr(i) }));
 
-    const df = data.results.map(result => ({
-        time: new Date(result.t).toString(),
-        open: result.o,
-        high: result.h,
-        low: result.l,
-        close: result.c
-    })) as BarData<Time>[];
-
-    const close = df.map(d => d.close);
-    const time = df.map(d => d.time);
-
-    const sma200 = ta.SMA(close, 200);
-    const sma50 = ta.SMA(close, 50);
-
-    const line200 = time.map((t, i) => ({ time: t, value: sma200[i] }));
-    const line50 = time.map((t, i) => ({ time: t, value: sma50[i] }));
-
-    const series = chart.addCandlestickSeries({ title: data.ticker });
-    series.setData(df);
-    series.applyOptions({
-        wickUpColor: 'rgb(54, 116, 217)',
-        upColor: 'rgb(54, 116, 217)',
-        wickDownColor: 'rgb(225, 50, 85)',
-        downColor: 'rgb(225, 50, 85)',
-        borderVisible: false,
-    });
-
-    function call(cond: boolean, time: Time): Optional<SeriesMarker<Time>> {
+    function call(cond: boolean): SeriesMarker<Time> | undefined {
         if (!cond) return;
-        return { time, position: 'belowBar', color: '#0f0', shape: 'arrowUp', text: 'Call' };
+        return { position: 'belowBar', color: '#0f0', shape: 'arrowUp', text: 'Call' } as SeriesMarker<Time>;
     }
 
-    function put(cond: boolean, time: Time): Optional<SeriesMarker<Time>> {
+    function put(cond: boolean): SeriesMarker<Time> | undefined {
         if (!cond) return;
-        return { time, position: 'aboveBar', color: '#f00', shape: 'arrowDown', text: 'Put' };
+        return { position: 'aboveBar', color: '#f00', shape: 'arrowDown', text: 'Put' } as SeriesMarker<Time>;
     }
 
-    function setMarkers(markers: Optional<SeriesMarker<Time>>[]) {
-        const checkCondition = (m: Optional<SeriesMarker<Time>>, i: number) => m && !markers[Math.max(0, i - 1)];
-        series.setMarkers(markers.filter(checkCondition) as SeriesMarker<Time>[]);
-    }
+    function firstOf<T>(alert: (i: number) => T): SeriesMarker<Time>[] {
+        const alerts = zip(alert) as unknown as SeriesMarker<Time>[];
+        const markers = [];
 
-    const range = <T>(n: number, evaluate: (i: number) => T) => Array.from({ length: n }, (_, i) => evaluate(i));
+        const has = (c: any) => c.position;
+        const notHas = (c: any) => !c.position;
 
-    const calls = range(df.length, i => call(sma50[i] > sma200[i], time[i]));
-    const puts = range(df.length, i => put(sma50[i] < sma200[i], time[i]));
-
-    const buys = calls.filter((m, i) => m && !calls[Math.max(0, i - 1)]) as SeriesMarker<Time>[];
-    const sells = puts.filter((m, i) => m && !puts[Math.max(0, i - 1)]) as SeriesMarker<Time>[];
-
-    const { income, wins, losses } = df.reduce(({ income, curr: { method, price }, wins, losses }, d) => {
-        if (method) {
-            const gains = method === 'call' ? d.close - price : price - d.close;
-            const limit_hit = gains >= price * WIN || gains <= price * LOSS;
-
-            if (limit_hit) {
-                method = '';
-                income += gains * +limit_hit;
-                wins += +(gains > 0);
-                losses += +(gains <= 0);
-            }
-
-            return { income, curr: { method, price }, wins, losses };
+        let idx = -1, i = 0;
+        while ((idx = alerts.findIndex(i % 2 ? has : notHas)) !== -1) {
+            i = markers.push(alerts[idx]);
+            alerts.splice(0, idx + 1);
         }
 
-        const call = buys.find(m => m && m.time === d.time);
-        const put = sells.find(m => m && m.time === d.time);
+        return markers;
+    }
 
-        let curr;
-        if (call) {
-            curr = { method: 'call', price: d.close };
-        } else if (put) {
-            curr = { method: 'put', price: d.close };
-        } else {
-            curr = { method: '', price: 0 };
-        }
-
-        return { income, curr, wins, losses };
-    }, { income: 0, curr: { method: '', price: 0 }, wins: 0, losses: 0 });
-
-    $('#income').innerHTML = `Income: ${income.toFixed(2)}, Wins: ${wins}, Losses: ${losses}`;
-
-    // setMarkers([...calls, ...puts]);
-    series.setMarkers([...buys]);
-
-    chart.addLineSeries({ title: 'SMA 200', lineType: 2, color: '#0f0' }).setData(line200);
-    chart.addLineSeries({ title: 'SMA 50', lineType: 2, color: '#f00' }).setData(line50);
+    return loadChart(data, { call, put, zip, firstOf });
 }())
 
 

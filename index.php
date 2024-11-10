@@ -17,6 +17,7 @@ if (!array_key_exists($uri, $routes)) {
     die('<h1>404 not found</h1>');
 }
 
+require_once 'vendor/autoload.php';
 require_once 'config.php';
 require_once 'view.php';
 require $routes[$uri];
