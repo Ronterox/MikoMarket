@@ -1,7 +1,6 @@
 import { createChart, CrosshairMode, LineStyle, type CandlestickData, type LineData, type LineWidth, type SeriesMarker, type Time } from 'lightweight-charts';
 
 const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
-$('#income').innerHTML = `Income: 985`;
 
 const PORT = 8080;
 const SYMBOL = 'AAPL';
@@ -53,12 +52,22 @@ const chart = createChart('chart', {
 interface Functionalities {
     put(cond: boolean): SeriesMarker<Time> | undefined
     call(cond: boolean): SeriesMarker<Time> | undefined
+    arrow(text: string, position: 'aboveBar' | 'belowBar', color: string, shape: 'arrowUp' | 'arrowDown'): SeriesMarker<Time>
 
-    zip<T>(arr: (i: number) => T): T[]
+    zip<T>(arr: (i: number) => T | any): T[]
     firstOf<T>(alert: (i: number) => T): SeriesMarker<Time>[]
 }
 
-function loadChart({ open, high, low, close, sma50, sma200 }: DataFrame, { call, put, zip, firstOf }: Functionalities) {
+const CALL_WIN = 0.05 + 1;
+const CALL_LOSS = 1 - 0.05;
+
+const PUT_WIN = 1 - 0.05;
+const PUT_LOSS = 0.05 + 1;
+
+function loadChart(
+    { open, high, low, close, sma50, sma200 }: DataFrame,
+    { call, arrow, put, zip, firstOf }: Functionalities
+) {
     const df = (i: number) => ({ open: open[i], high: high[i], low: low[i], close: close[i] });
 
     const line200 = (i: number) => ({ value: sma200[i] });
@@ -66,6 +75,63 @@ function loadChart({ open, high, low, close, sma50, sma200 }: DataFrame, { call,
 
     const calls = (i: number) => call(sma50[i] > sma200[i]);
     const puts = (i: number) => put(sma50[i] < sma200[i]);
+
+    const wins: Time[] = [];
+    const losses: Time[] = [];
+    let income = 0;
+
+    firstOf(calls).filter(c => c.position).forEach(data => {
+        const candles = zip<CandlestickData<Time>>(df);
+        const idx = candles.findIndex(c => c.time === data.time);
+        if (idx === -1) return;
+
+        const candleClose = candles[idx].close;
+        for (let i = idx + 1; i < candles.length; i++) {
+            const { time, close } = candles[i];
+
+            if (close >= candleClose * CALL_WIN) {
+                income += close - candleClose;
+                wins.push(time);
+                return;
+            }
+
+            if (close <= candleClose * CALL_LOSS) {
+                income += candleClose - close;
+                losses.push(time);
+                return;
+            }
+        }
+    });
+
+    $('#income').innerHTML = `Calls -> Wins: ${wins.length} (${wins}), Losses:${losses.length} (${losses})`;
+
+    wins.length = losses.length = 0;
+
+    firstOf(puts).filter(c => c.position).forEach(data => {
+        const candles = zip<CandlestickData<Time>>(df);
+        const idx = candles.findIndex(c => c.time === data.time);
+        if (idx === -1) return;
+
+        const candleClose = candles[idx].close;
+        for (let i = idx + 1; i < candles.length; i++) {
+            const { time, close } = candles[i];
+
+            if (close <= candleClose * PUT_WIN) {
+                income += candleClose - close;
+                wins.push(time);
+                return;
+            }
+
+            if (close >= candleClose * PUT_LOSS) {
+                income += close - candleClose;
+                losses.push(time);
+                return;
+            }
+        }
+    });
+
+    $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length} (${wins}), Losses:${losses.length} (${losses})`;
+    $('#income').innerHTML += `<br/>Income: ${income.toFixed(2)}$`;
 
     // TODO: bars
     const series = chart.addCandlestickSeries({ title: SYMBOL });
@@ -96,14 +162,18 @@ function loadChart({ open, high, low, close, sma50, sma200 }: DataFrame, { call,
     const data: DataFrame = await res.json().catch(console.error);
     const zip = <T>(arr: (i: number) => T) => data.time.map((t, i) => ({ time: t, ...arr(i) }));
 
+    function arrow(text: string, position: 'aboveBar' | 'belowBar', color: string, shape: 'arrowUp' | 'arrowDown') {
+        return { text, position, color, shape } as SeriesMarker<Time>;
+    }
+
     function call(cond: boolean): SeriesMarker<Time> | undefined {
         if (!cond) return;
-        return { position: 'belowBar', color: '#0f0', shape: 'arrowUp', text: 'Call' } as SeriesMarker<Time>;
+        return arrow('Call', 'belowBar', '#0f0', 'arrowUp');
     }
 
     function put(cond: boolean): SeriesMarker<Time> | undefined {
         if (!cond) return;
-        return { position: 'aboveBar', color: '#f00', shape: 'arrowDown', text: 'Put' } as SeriesMarker<Time>;
+        return arrow('Put', 'aboveBar', '#f00', 'arrowDown');
     }
 
     function firstOf<T>(alert: (i: number) => T): SeriesMarker<Time>[] {
@@ -114,7 +184,7 @@ function loadChart({ open, high, low, close, sma50, sma200 }: DataFrame, { call,
         const notHas = (c: any) => !c.position;
 
         let idx = -1, i = 0;
-        while ((idx = alerts.findIndex(i % 2 ? has : notHas)) !== -1) {
+        while ((idx = alerts.findIndex(i % 2 == 0 ? has : notHas)) !== -1) {
             i = markers.push(alerts[idx]);
             alerts.splice(0, idx + 1);
         }
@@ -122,7 +192,7 @@ function loadChart({ open, high, low, close, sma50, sma200 }: DataFrame, { call,
         return markers;
     }
 
-    return loadChart(data, { call, put, zip, firstOf });
+    return loadChart(data, { call, put, arrow, zip, firstOf });
 }())
 
 
