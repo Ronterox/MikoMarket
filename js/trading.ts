@@ -47,15 +47,32 @@ const chart = createChart('chart', {
             labelBackgroundColor: '#9B7DFF',
         },
     },
+    watermark: {
+        visible: true,
+        text: `${SYMBOL} Miko Market`,
+        color: 'rgb(255, 255, 255, 0.2)',
+    },
 });
 
-interface Functionalities {
-    put(cond: boolean): SeriesMarker<Time> | undefined
-    call(cond: boolean): SeriesMarker<Time> | undefined
-    arrow(text: string, position: 'aboveBar' | 'belowBar', color: string, shape: 'arrowUp' | 'arrowDown'): SeriesMarker<Time>
 
-    zip<T>(arr: (i: number) => T | any): T[]
-    firstOf<T>(alert: (i: number) => T): SeriesMarker<Time>[]
+const series = chart.addCandlestickSeries({ title: SYMBOL });
+
+type Position = 'aboveBar' | 'belowBar';
+type Shape = 'arrowUp' | 'arrowDown';
+type Color = string;
+
+type Candle = CandlestickData<Time>;
+type Mark = SeriesMarker<Time>;
+type Iter<T = any> = (i: number) => T;
+
+interface Functionalities {
+    put(cond: boolean): Mark | undefined
+    call(cond: boolean): Mark | undefined
+    arrow(text: string, position: Position, color: Color, shape: Shape, time?: Time): Mark
+
+    zip<T>(arr: Iter): T[]
+    firstOf(alert: Iter): Mark[]
+    sortedByTime<T extends { time: Time }>(arr: T[]): T[]
 }
 
 const CALL_WIN = 0.05 + 1;
@@ -66,7 +83,7 @@ const PUT_LOSS = 0.05 + 1;
 
 function loadChart(
     { open, high, low, close, sma50, sma200 }: DataFrame,
-    { call, arrow, put, zip, firstOf }: Functionalities
+    { call, arrow, put, zip, firstOf, sortedByTime }: Functionalities
 ) {
     const df = (i: number) => ({ open: open[i], high: high[i], low: low[i], close: close[i] });
 
@@ -78,78 +95,80 @@ function loadChart(
 
     const wins: Time[] = [];
     const losses: Time[] = [];
+
+    const orderMarks = [] as Mark[];
+    const candles = zip<Candle>(df);
+
     let income = 0;
 
-    firstOf(calls).filter(c => c.position).forEach(data => {
-        const candles = zip<CandlestickData<Time>>(df);
-        const idx = candles.findIndex(c => c.time === data.time);
-        if (idx === -1) return;
-
-        const candleClose = candles[idx].close;
-        for (let i = idx + 1; i < candles.length; i++) {
-            const { time, close } = candles[i];
-
-            if (close >= candleClose * CALL_WIN) {
-                income += close - candleClose;
-                wins.push(time);
-                return;
-            }
-
-            if (close <= candleClose * CALL_LOSS) {
-                income += candleClose - close;
-                losses.push(time);
-                return;
-            }
+    const markers = (...arr: Mark[][]) => {
+        let allMarks = arr[0];
+        for (let i = 1; i < arr.length; i++) {
+            allMarks = allMarks.concat(arr[i]);
         }
-    });
+        series.setMarkers(sortedByTime(allMarks));
+    }
+    const line = (data: Iter, title: string, lineType: number, color: Color) => chart.addLineSeries({ title, lineType, color }).setData(zip(data));
+    const bars = (data: Iter) => series.setData(zip(data));
+
+    function ordersClosure(
+        orders: Iter,
+        winCond: (c: number, p: number) => boolean,
+        lossCond: (c: number, p: number) => boolean,
+        winArrow: (time: Time) => Mark,
+        lossArrow: (time: Time) => Mark
+    ) {
+        firstOf(orders).forEach(data => {
+            const idx = candles.findIndex(c => c.time === data.time);
+            if (idx === -1) return;
+
+            const orderBuy = candles[idx].close;
+            for (let i = idx + 1; i < candles.length; i++) {
+                const { time, close } = candles[i];
+
+                if (winCond(close, orderBuy)) {
+                    income += Math.abs(orderBuy - close);
+                    orderMarks.push(winArrow(time));
+                    wins.push(time);
+                    break;
+                }
+
+                if (lossCond(close, orderBuy)) {
+                    income -= Math.abs(close - orderBuy);
+                    orderMarks.push(lossArrow(time));
+                    losses.push(time);
+                    break;
+                }
+            }
+        });
+    }
+
+    ordersClosure(calls,
+        (c, p) => c >= p * CALL_WIN,
+        (c, p) => c <= p * CALL_LOSS,
+        t => arrow('Call Win', 'aboveBar', '#0f1', 'arrowDown', t),
+        t => arrow('Call Loss', 'aboveBar', '#0f1', 'arrowDown', t)
+    );
 
     $('#income').innerHTML = `Calls -> Wins: ${wins.length} (${wins}), Losses:${losses.length} (${losses})`;
-
     wins.length = losses.length = 0;
 
-    firstOf(puts).filter(c => c.position).forEach(data => {
-        const candles = zip<CandlestickData<Time>>(df);
-        const idx = candles.findIndex(c => c.time === data.time);
-        if (idx === -1) return;
+    ordersClosure(puts,
+        (c, p) => c <= p * PUT_WIN,
+        (c, p) => c >= p * PUT_LOSS,
+        t => arrow('Put Win', 'aboveBar', '#f01', 'arrowUp', t),
+        t => arrow('Put Loss', 'aboveBar', '#f01', 'arrowDown', t)
+    );
 
-        const candleClose = candles[idx].close;
-        for (let i = idx + 1; i < candles.length; i++) {
-            const { time, close } = candles[i];
-
-            if (close <= candleClose * PUT_WIN) {
-                income += candleClose - close;
-                wins.push(time);
-                return;
-            }
-
-            if (close >= candleClose * PUT_LOSS) {
-                income += close - candleClose;
-                losses.push(time);
-                return;
-            }
-        }
-    });
-
-    $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length} (${wins}), Losses:${losses.length} (${losses})`;
+    $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length} (${wins}), Losses: ${losses.length} (${losses})`;
     $('#income').innerHTML += `<br/>Income: ${income.toFixed(2)}$`;
 
-    // TODO: bars
-    const series = chart.addCandlestickSeries({ title: SYMBOL });
-    series.applyOptions({
-        wickUpColor: 'rgb(54, 116, 217)',
-        upColor: 'rgb(54, 116, 217)',
-        wickDownColor: 'rgb(225, 50, 85)',
-        downColor: 'rgb(225, 50, 85)',
-        borderVisible: false,
-    });
-    series.setData(zip(df) as CandlestickData<Time>[]);
+    bars(df)
 
-    // TODO: alert
-    series.setMarkers(firstOf(calls).concat(firstOf(puts)));
+    line(line200, 'SMA 200', 2, '#0A5');
+    line(line50, 'SMA 50', 2, '#f05');
 
-    // TODO: line
-    chart.addLineSeries({ title: 'SMA 200', lineType: 2, color: '#0A5' }).setData(zip(line200) as LineData<Time>[]);
-    chart.addLineSeries({ title: 'SMA 50', lineType: 2, color: '#f05' }).setData(zip(line50) as LineData<Time>[]);
+    markers(firstOf(calls), firstOf(puts), orderMarks);
 }
 
 (async function() {
@@ -160,10 +179,10 @@ function loadChart(
     }
 
     const data: DataFrame = await res.json().catch(console.error);
-    const zip = <T>(arr: (i: number) => T) => data.time.map((t, i) => ({ time: t, ...arr(i) }));
+    const zip = <T>(arr: Iter<T>) => data.time.map((t, i) => ({ time: t, ...arr(i) }));
 
-    function arrow(text: string, position: 'aboveBar' | 'belowBar', color: string, shape: 'arrowUp' | 'arrowDown') {
-        return { text, position, color, shape } as SeriesMarker<Time>;
+    function arrow(text: string, position: Position, color: Color, shape: Shape, time?: Time): Mark {
+        return time ? { time, text, position, color, shape } : { text, position, color, shape } as Mark;
     }
 
     function call(cond: boolean): SeriesMarker<Time> | undefined {
@@ -176,8 +195,8 @@ function loadChart(
         return arrow('Put', 'aboveBar', '#f00', 'arrowDown');
     }
 
-    function firstOf<T>(alert: (i: number) => T): SeriesMarker<Time>[] {
-        const alerts = zip(alert) as unknown as SeriesMarker<Time>[];
+    function firstOf(alert: Iter): Mark[] {
+        const alerts = zip<Mark>(alert);
         const markers = [];
 
         const has = (c: any) => c.position;
@@ -185,14 +204,20 @@ function loadChart(
 
         let idx = -1, i = 0;
         while ((idx = alerts.findIndex(i % 2 == 0 ? has : notHas)) !== -1) {
-            i = markers.push(alerts[idx]);
+            if (i % 2 == 0) markers.push(alerts[idx]);
             alerts.splice(0, idx + 1);
+            i++;
         }
 
         return markers;
     }
 
-    return loadChart(data, { call, put, arrow, zip, firstOf });
+    function sortedByTime<T extends { time: Time }>(arr: T[]): T[] {
+        return arr.sort((a, b) => new Date(a.time as string).valueOf() - new Date(b.time as string).valueOf())
+
+    }
+
+    return loadChart(data, { call, put, arrow, zip, firstOf, sortedByTime });
 }())
 
 
