@@ -24,10 +24,11 @@ export function loadChart(
         return arrow(`Put ${i}`, 'aboveBar', '#f00', 'arrowDown');
     }
 
-    const toLine = (series: number[]) => (i: number) => ({ value: series[i] });
     const df = (i: number) => ({ open: open[i], high: high[i], low: low[i], close: close[i] });
+    const toLine = (series: number[]) => (i: number) => ({ value: series[i] });
 
     const dist = (a: number, b: number) => Math.abs(a - b);
+    const winrate = (a: any[], b: any[]) => ((a.length / (a.length + b.length)) * 100).toFixed(2) + '%';
 
     const calls_bb_ham_engulfing = (i: number) => {
         const percentage = 0.5;
@@ -90,9 +91,10 @@ export function loadChart(
 
             const orderBuy = candles[idx].close;
             const length = 5;
+            const skip = 2;
 
             let i;
-            for (i = idx + 1; i < Math.min(idx + length, candles.length); i++) {
+            for (i = idx + skip + 1; i < Math.min(idx + length, candles.length); i++) {
                 const { time, close } = candles[i];
 
                 if (winCond(close, orderBuy)) {
@@ -116,7 +118,10 @@ export function loadChart(
         (t, i) => arrow(`Call Loss ${i}`, 'aboveBar', '#0f2', 'arrowDown', t)
     );
 
-    $('#income').innerHTML = `Calls -> Wins: ${wins.length}, Losses: ${losses.length}`;
+    const w_calls = Array.from(wins);
+    const l_calls = Array.from(losses);
+
+    $('#income').innerHTML = `Calls -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_calls, l_calls)}`;
 
     wins.length = losses.length = 0;
 
@@ -126,8 +131,14 @@ export function loadChart(
         (t, i) => arrow(`Put Loss ${i}`, 'aboveBar', '#f02', 'arrowDown', t)
     );
 
-    $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length}, Losses: ${losses.length}`;
-    $('#income').innerHTML += `<br/>Income: ${income.toFixed(2)}$, Winrate: ${(wins.length / (wins.length + losses.length) * 100).toFixed(2)}%`;
+    const w_puts = Array.from(wins);
+    const l_puts = Array.from(losses);
+
+    const t_wins = w_calls.concat(w_puts);
+    const t_losses = l_calls.concat(l_puts);
+
+    $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}`;
+    $('#income').innerHTML += `<br/>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(t_wins, t_losses)}`;
 
     bars(df)
     line(toLine(ta.sma[20]), 'SMA 20', 2, '#0A5');
