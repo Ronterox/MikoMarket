@@ -7,11 +7,6 @@ export type DataFrame = {
     low: number[];
     close: number[];
 }
-    &
-{
-    sma50: number[];
-    sma200: number[]
-};
 
 export type Position = 'aboveBar' | 'belowBar';
 export type Shape = 'arrowUp' | 'arrowDown';
@@ -22,12 +17,11 @@ export type Mark = SeriesMarker<Time>;
 export type Iter<T = any> = (i: number) => T;
 
 export interface Functionalities {
-    put(cond: boolean): Mark | undefined
-    call(cond: boolean): Mark | undefined
     arrow(text: string, position: Position, color: Color, shape: Shape, time?: Time): Mark
 
     zip<T>(arr: Iter): T[]
     firstOf(alert: Iter): Mark[]
+
     sortedByTime<T extends { time: Time }>(arr: T[]): T[]
 }
 
