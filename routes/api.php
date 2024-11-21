@@ -2,6 +2,11 @@
 
 use LupeCode\phpTraderNative\Trader;
 
+if (!isset($_REQUEST['symbol'])) {
+    $_POST = json_decode(file_get_contents('php://input'), true);
+    $_REQUEST['symbol'] = $_POST['symbol'];
+}
+
 if (isset($_REQUEST['symbol'])) {
     $bd = new SQLite3(CACHE . 'data.db');
     $bd->exec('CREATE TABLE IF NOT EXISTS queries (
@@ -54,8 +59,23 @@ if (isset($_REQUEST['symbol'])) {
     }, $data['results']);
 
     header('Content-Type: application/json');
-    echo json_encode($df);
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $ta = $_POST['ta'];
+        foreach($ta as $key => $value) {
+            foreach ($ta[$key] as $k => $v) {
+                try {
+                    $ta[$key][$k] = Trader::$key($df['close'], $k);
+                } catch (Throwable $th) {
+                    echo json_encode(['error' => $th->getMessage()]);
+                    return;
+                }
+            }
+        }
+        echo json_encode($ta);
+    } else {
+        echo json_encode($df);
+    }
 } else {
     header('Content-Type: application/json');
-    echo json_encode($HTTP_RAW_POST_DATA);
+    echo json_encode(['error' => 'No symbol provided']);
 }

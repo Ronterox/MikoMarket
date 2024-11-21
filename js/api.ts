@@ -50,7 +50,7 @@ const series = chart.addCandlestickSeries({ title: SYMBOL });
         fetch(BASE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: SYMBOL, ta: JSON.stringify(new TechnicalAnalysis()) }),
+            body: JSON.stringify({ symbol: SYMBOL, ta: new TechnicalAnalysis() }),
         })
     ]);
 
@@ -59,15 +59,10 @@ const series = chart.addCandlestickSeries({ title: SYMBOL });
         return;
     }
 
-    console.log("ta ->", ta_res);
-
     let ta: TechnicalAnalysis | undefined;
     try {
-        const json = await ta_res.json().catch(console.error);
-        console.log("ta ->", json);
-
-        ta = JSON.parse(json);
-
+        ta = await ta_res.json().catch(console.error);
+        console.log("ta ->", ta);
     } catch (error) {
         console.error(error);
     }
