@@ -1,18 +1,23 @@
 import type { Time } from 'lightweight-charts';
 import type { Candle, DataFrame, Functionalities, GraphicFunctionalities, Iter, Mark } from './types';
+import { z } from 'zod';
 
 const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
 
-export class TechnicalAnalysis {
-    sma = { 50: [0], 200: [0], 20: [0] }
-    stddev = { 20: [0] }
-}
+const DataList = z.custom<Record<number, number>>().default({});
+export const TechnicalAnalysis = z.object({
+    sma: z.object({ 50: DataList, 200: DataList, 20: DataList }).default({}),
+    stddev: z.object({ 20: DataList }).default({}),
+});
+
+// TODO: Max and min win
+// TODO: Average over all and change between 1, 3, 5 or more
 
 export function loadChart(
-    { open, high, low, close }: DataFrame,
+    { open, high, low, close }: z.infer<typeof DataFrame>,
     { arrow, zip, firstOf, sortedByTime }: Functionalities,
     { markers, line, bars }: GraphicFunctionalities,
-    ta: TechnicalAnalysis
+    ta: z.infer<typeof TechnicalAnalysis>
 ) {
     function toCall(cond: boolean, i: number): Mark | undefined {
         if (!cond) return;

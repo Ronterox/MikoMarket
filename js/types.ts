@@ -1,16 +1,23 @@
 import type { CandlestickData, SeriesMarker, Time } from "lightweight-charts";
+import { z } from 'zod';
 
-export type DataFrame = {
-    time: Time[];
-    open: number[];
-    high: number[];
-    low: number[];
-    close: number[];
-}
+const NumArray = z.custom<number[]>();
 
-export type Position = 'aboveBar' | 'belowBar';
-export type Shape = 'arrowUp' | 'arrowDown';
-export type Color = string;
+export const DataFrame = z.object({
+    time: z.custom<Time[]>(),
+    open: NumArray,
+    high: NumArray,
+    low: NumArray,
+    close: NumArray,
+});
+
+const Position = z.enum(['aboveBar', 'belowBar']);
+const Shape = z.enum(['arrowUp', 'arrowDown']);
+const Color = z.string();
+
+export type Position = z.infer<typeof Position>;
+export type Shape = z.infer<typeof Shape>;
+export type Color = z.infer<typeof Color>;
 
 export type Candle = CandlestickData<Time>;
 export type Mark = SeriesMarker<Time>;

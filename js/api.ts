@@ -1,4 +1,4 @@
-import type { Color, DataFrame, Iter, Mark, Position, Shape } from './types';
+import { DataFrame, type Color, type Iter, type Mark, type Position, type Shape } from './types';
 import { createChart, CrosshairMode, LineStyle, type LineWidth, type Time } from 'lightweight-charts';
 import { loadChart, TechnicalAnalysis } from './trading';
 
@@ -18,7 +18,7 @@ const chart = createChart('chart', {
     },
     localization: {
         priceFormatter: (price: number) => `${price.toFixed(2)}$`,
-        timeFormatter: (time: Time) => new Date(time).toUTCString(),
+        timeFormatter: (time: Time) => new Date(time as number).toUTCString(),
     },
     crosshair: {
         mode: CrosshairMode.Normal,
@@ -45,29 +45,19 @@ const chart = createChart('chart', {
 const series = chart.addCandlestickSeries({ title: SYMBOL });
 
 (async function() {
-    const [data_res, ta_res] = await Promise.all([
-        fetch(BASE_URL + `?symbol=${SYMBOL}`),
+    const ta_req = TechnicalAnalysis.promise().parse(
         fetch(BASE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: SYMBOL, ta: new TechnicalAnalysis() }),
-        })
-    ]);
+            body: JSON.stringify({ symbol: SYMBOL, ta: TechnicalAnalysis.parse({}) }),
+        }).then(res => res.json())
+    );
 
-    if (!data_res.ok || !ta_res.ok) {
-        console.error(data_res, ta_res);
-        return;
-    }
+    const data_req = DataFrame.promise().parse(
+        fetch(BASE_URL + `?symbol=${SYMBOL}`).then(res => res.json())
+    );
 
-    let ta: TechnicalAnalysis | undefined;
-    try {
-        ta = await ta_res.json().catch(console.error);
-        console.log("ta ->", ta);
-    } catch (error) {
-        console.error(error);
-    }
-
-    const data: DataFrame = await data_res.json().catch(console.error);
+    const [data, ta] = await Promise.all([data_req, ta_req]);
     const zip = <T>(arr: Iter<T>) => data.time.map((t, i) => ({ time: t, ...arr(i) }));
 
     function arrow(text: string, position: Position, color: Color, shape: Shape, time?: Time): Mark {
@@ -109,7 +99,7 @@ const series = chart.addCandlestickSeries({ title: SYMBOL });
     return loadChart(data,
         { arrow, zip, firstOf, sortedByTime },
         { line, bars, markers },
-        { ...ta } as TechnicalAnalysis
+        { ...ta }
     );
 }())
 
