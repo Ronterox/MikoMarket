@@ -50,7 +50,7 @@ export function loadChart(
         const ema = Array.from({ length: start }, (_, i) => ta.sma[length][i] ?? 0);
         const multiplier = 2 / (length + 1);
 
-        for (let i = start - 1; i < src.length; i++) {
+        for (let i = start; i < src.length; i++) {
             ema.push(src[i] * multiplier + ema[Math.max(0, i - 1)] * (1 - multiplier));
         }
 
@@ -122,10 +122,11 @@ export function loadChart(
 
     const transaction_cost = 1000;
     const commission = 0.02 * transaction_cost;
-    const leverage = 25;
+    const leverage = 50;
 
-    const stop_limit = 0.5;
+    const stop_limit = 0.2;
     const stop_loss = 0.2;
+    const length_limit = 20;
 
     $('#income').innerHTML = `
     <h2>TC: ${transaction_cost}$,
@@ -187,11 +188,8 @@ export function loadChart(
                 return false;
             }
 
-            const length = 10;
-            const skip = 0;
-
             let i;
-            for (i = idx + skip + 1; i < Math.min(idx + length, candles.length); i++) {
+            for (i = idx + 1; i < Math.min(idx + length_limit, candles.length); i++) {
                 const { time, close } = candles[i];
                 if (checkWinLoss(time, close, winCond, lossCond)) return;
             }
