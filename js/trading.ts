@@ -5,17 +5,28 @@ import { z } from 'zod';
 const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
 
 const DataList = z.custom<Record<number, number>>().default({});
+
 export const TechnicalAnalysis = z.object({
-    sma: z.object({ 50: DataList, 200: DataList, 20: DataList }).default({}),
+    sma: z.object({ 50: DataList, 200: DataList, 20: DataList, 3: DataList }).default({}),
     stddev: z.object({ 20: DataList }).default({}),
+    max: z.object({ 10: DataList }).default({}),
+    min: z.object({ 10: DataList }).default({}),
 });
 
-// TODO: Max and min win
-// TODO: Average over all and change between 1, 3, 5 or more
+const Source = z.enum(['close', 'open', 'high', 'low']).default('close');
+
+export const Sources = z.record(TechnicalAnalysis.keyof(), Source).parse({
+    sma: 'close',
+    stddev: 'close',
+    max: 'high',
+    min: 'low',
+});
+
+type CloseCond = (close: number, orderBuy: number, winPercent: number) => boolean;
 
 export function loadChart(
     { open, high, low, close }: z.infer<typeof DataFrame>,
-    { arrow, zip, firstOf, sortedByTime }: Functionalities,
+    { arrow, zip, firstOf }: Functionalities,
     { markers, line, bars }: GraphicFunctionalities,
     ta: z.infer<typeof TechnicalAnalysis>
 ) {
@@ -35,15 +46,37 @@ export function loadChart(
     const dist = (a: number, b: number) => Math.abs(a - b);
     const winrate = (a: any[], b: any[]) => ((a.length / (a.length + b.length)) * 100).toFixed(2) + '%';
 
+    const ta_ema = (src: number[], length: number, start: number): number[] => {
+        const ema = Array.from({ length: start }, (_, i) => ta.sma[length][i] ?? 0);
+        const multiplier = 2 / (length + 1);
+
+        for (let i = start - 1; i < src.length; i++) {
+            ema.push(src[i] * multiplier + ema[Math.max(0, i - 1)] * (1 - multiplier));
+        }
+
+        return ema;
+    };
+
+    const q = 10;
+    const avg_top = close.map((c, i) => c - 0.5 * (ta.max[q][i] + ta.min[q][i]))
+    const avg_bot = close.map((_, i) => ta.max[q][i] - ta.min[q][i])
+
+    const smi_top = ta_ema(ta_ema(avg_top, 3, q), 3, q);
+    const smi_bot = ta_ema(ta_ema(avg_bot, 3, q), 3, q);
+
     const calls_bb_ham_engulfing = (i: number) => {
+        const smi = smi_top[i] / (0.5 * smi_bot[i]);
+
+        const oversold = -0.6;
+        const is_oversold = smi <= oversold;
+        // const is_oversold = true;
+
         const percentage = 0.5;
-        // TODO: should probably reverse so that you don't have to do Math.max(-1)
-        // or modify access of close, high, open, low
         const li = Math.max(i - 1, 0);
         const is_red = open[li] > close[li];
 
         const l_lower_tail = is_red ? close[li] - low[li] : open[li] - low[li];
-        const l_body = dist(open[i], close[i]);
+        const l_body = dist(open[li], close[li]);
 
         const l_hammer = l_lower_tail >= l_body * percentage;
         const engulfing = dist(close[i], open[i]) > dist(high[li], low[li]);
@@ -51,16 +84,22 @@ export function loadChart(
         const lower_bb = ta.sma[20][i] - 2 * ta.stddev[20][i];
         const c_red = open[i] > close[i];
 
-        return toCall(!c_red && low[i] < lower_bb && l_hammer && engulfing, i);
+        return toCall(!c_red && is_oversold && low[i] < lower_bb && l_hammer && engulfing, i);
     };
 
     const puts_bb_han_engulfing = (i: number) => {
+        const smi = smi_top[i] / (0.5 * smi_bot[i]);
+
+        const overbought = 0.6
+        const is_overbought = smi >= overbought
+        // const is_overbought = true;
+
         const percentage = 0.5;
         const li = Math.max(i - 1, 0);
         const is_red = open[li] > close[li];
 
         const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
-        const l_body = dist(open[i], close[i]);
+        const l_body = dist(open[li], close[li]);
 
         const l_hanger = l_upper_tail >= l_body * percentage;
         const engulfing = dist(close[i], open[i]) > dist(high[li], low[li]);
@@ -68,13 +107,9 @@ export function loadChart(
         const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
         const c_red = open[i] > close[i];
 
-        return toPut(c_red && high[i] > upper_bb && l_hanger && engulfing, i);
+        return toPut(c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing, i);
     };
 
-    const calls_sma = (i: number) => toCall(ta.sma[50][i] > ta.sma[200][i], i);
-    const puts_sma = (i: number) => toPut(ta.sma[50][i] < ta.sma[200][i], i);
-
-    // const [calls, puts] = [calls_sma, puts_sma]
     const [calls, puts] = [calls_bb_ham_engulfing, puts_bb_han_engulfing];
 
     const wins: Time[] = [];
@@ -83,10 +118,26 @@ export function loadChart(
     const orderMarks = [] as Mark[];
     const candles = zip<Candle>(df);
 
+    // 0.5 == xN / 10
+
+    const transaction_cost = 1000;
+    const commission = 0.02 * transaction_cost;
+    const leverage = 50
+
+    const stop_limit = 0.2;
+    const stop_loss = 0.2;
+
+    let maxWin = 0;
+    let maxLoss = 0;
+    let minWin = Infinity;
+    let minLoss = Infinity;
     let income = 0;
+
     function ordersClosure(
         orders: Iter,
-        winCond: (close: number, orderBuy: number) => boolean,
+        winCond: CloseCond,
+        lossCond: CloseCond,
+        exitWinCond: CloseCond,
         winArrow: (time: Time, i: number) => Mark,
         lossArrow: (time: Time, i: number) => Mark
     ) {
@@ -94,31 +145,54 @@ export function loadChart(
             const idx = candles.findIndex(c => c.time === data.time);
             if (idx === -1) return;
 
-            const orderBuy = candles[idx].close;
-            const length = 5;
-            const skip = 2;
+            function checkWinLoss(time: Time, close: number, wcond: CloseCond, lcond: CloseCond): boolean {
+                const orderBuy = candles[idx].close;
+                const percent = (Math.abs(orderBuy - close) / orderBuy) * leverage / 0.5;
+
+                if (wcond(close, orderBuy, percent)) {
+                    const win = transaction_cost * percent - commission;
+                    income += win;
+
+                    maxWin = Math.max(maxWin, win);
+                    minWin = Math.min(minWin, win);
+
+                    orderMarks.push(winArrow(time, idx));
+                    wins.push(time);
+
+                    return true;
+                } else if (lcond(close, orderBuy, percent)) {
+                    const loss = transaction_cost * percent + commission;
+                    income -= loss;
+
+                    minLoss = Math.min(minLoss, loss);
+                    maxLoss = Math.max(maxLoss, loss);
+
+                    orderMarks.push(lossArrow(time, idx));
+                    losses.push(time);
+
+                    return true;
+                }
+
+                return false;
+            }
+
+            const length = 10;
+            const skip = 0;
 
             let i;
             for (i = idx + skip + 1; i < Math.min(idx + length, candles.length); i++) {
                 const { time, close } = candles[i];
-
-                if (winCond(close, orderBuy)) {
-                    income += Math.abs(orderBuy - close);
-                    orderMarks.push(winArrow(time, idx));
-                    wins.push(time);
-                    return;
-                }
+                if (checkWinLoss(time, close, winCond, lossCond)) return;
             }
-
             const { time, close } = candles[i];
-            income -= Math.abs(close - orderBuy);
-            orderMarks.push(lossArrow(time, idx));
-            losses.push(time);
+            checkWinLoss(time, close, exitWinCond, () => true);
         });
     }
 
     ordersClosure(calls,
-        (c, o) => c > o,
+        (c, o, p) => c > o && p >= stop_limit,
+        (c, o, p) => c < o && p >= stop_loss,
+        (c, o, _) => c > o,
         (t, i) => arrow(`Call Win ${i}`, 'aboveBar', '#0f9', 'arrowDown', t),
         (t, i) => arrow(`Call Loss ${i}`, 'aboveBar', '#0f2', 'arrowDown', t)
     );
@@ -131,7 +205,9 @@ export function loadChart(
     wins.length = losses.length = 0;
 
     ordersClosure(puts,
-        (c, o) => c < o,
+        (c, o, p) => c < o && p >= stop_limit,
+        (c, o, p) => c > o && p >= stop_loss,
+        (c, o, _) => c < o,
         (t, i) => arrow(`Put Win ${i}`, 'aboveBar', '#f09', 'arrowDown', t),
         (t, i) => arrow(`Put Loss ${i}`, 'aboveBar', '#f02', 'arrowDown', t)
     );
@@ -144,9 +220,10 @@ export function loadChart(
 
     $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}`;
     $('#income').innerHTML += `<br/>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(t_wins, t_losses)}`;
+    $('#income').innerHTML += `<br/><br/>Max Win: ${maxWin.toFixed(2)}$, Min Win: ${minWin.toFixed(2)}$<br/>Max Loss: -${maxLoss.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$`;
 
     bars(df)
-    line(toLine(ta.sma[20]), 'SMA 20', 2, '#0A5');
+    line(toLine(ta.sma[20] as number[]), 'SMA 20', 2, '#0A5');
     markers(firstOf(calls), firstOf(puts), orderMarks);
 }
 

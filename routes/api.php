@@ -22,7 +22,7 @@ if (isset($_REQUEST['symbol'])) {
     $start_date = '2023-11-14';
     $end_date = '2024-02-16';
 
-    $multiplier = 3;
+    $multiplier = 1;
     $timespan = 'minute';
     $limit = 50000; # Max: 50000, aggregates is count * multiplier
 
@@ -61,10 +61,12 @@ if (isset($_REQUEST['symbol'])) {
     header('Content-Type: application/json');
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $ta = $_POST['ta'];
+        $src = $_POST['src'];
         foreach($ta as $key => $value) {
             foreach ($ta[$key] as $k => $v) {
                 try {
-                    $ta[$key][$k] = Trader::$key($df['close'], $k);
+                    $s = $src[$key];
+                    $ta[$key][$k] = Trader::$key($df[$s], $k);
                 } catch (Throwable $th) {
                     echo json_encode(['error' => $th->getMessage()]);
                     return;

@@ -11,13 +11,9 @@ export const DataFrame = z.object({
     close: NumArray,
 });
 
-const Position = z.enum(['aboveBar', 'belowBar']);
-const Shape = z.enum(['arrowUp', 'arrowDown']);
-const Color = z.string();
-
-export type Position = z.infer<typeof Position>;
-export type Shape = z.infer<typeof Shape>;
-export type Color = z.infer<typeof Color>;
+export type Position = 'aboveBar' | 'belowBar';
+export type Shape = 'arrowUp' | 'arrowDown';
+export type Color = string;
 
 export type Candle = CandlestickData<Time>;
 export type Mark = SeriesMarker<Time>;

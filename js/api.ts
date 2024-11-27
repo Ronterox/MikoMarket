@@ -1,6 +1,6 @@
 import { DataFrame, type Color, type Iter, type Mark, type Position, type Shape } from './types';
 import { createChart, CrosshairMode, LineStyle, type LineWidth, type Time } from 'lightweight-charts';
-import { loadChart, TechnicalAnalysis } from './trading';
+import { loadChart, Sources, TechnicalAnalysis } from './trading';
 
 const PORT = 8080;
 const SYMBOL = 'SPY';
@@ -49,7 +49,7 @@ const series = chart.addCandlestickSeries({ title: SYMBOL });
         fetch(BASE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: SYMBOL, ta: TechnicalAnalysis.parse({}) }),
+            body: JSON.stringify({ symbol: SYMBOL, ta: TechnicalAnalysis.parse({}), src: Sources }),
         }).then(res => res.json())
     );
 
@@ -83,7 +83,6 @@ const series = chart.addCandlestickSeries({ title: SYMBOL });
 
     function sortedByTime<T extends { time: Time }>(arr: T[]): T[] {
         return arr.sort((a, b) => new Date(a.time as string).valueOf() - new Date(b.time as string).valueOf())
-
     }
 
     const markers = (...arr: Mark[][]) => {
