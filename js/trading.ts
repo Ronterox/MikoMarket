@@ -122,14 +122,18 @@ export function loadChart(
 
     const transaction_cost = 1000;
     const commission = 0.02 * transaction_cost;
-    const leverage = 50
+    const leverage = 25;
 
-    const stop_limit = 0.2;
+    const stop_limit = 0.5;
     const stop_loss = 0.2;
 
     $('#income').innerHTML = `
-    <h2>TC: ${transaction_cost}$, C: ${commission}$, L: x${leverage}, SLimit: ${stop_limit * 100}%, SLoss: ${stop_loss * 100}%</h2>
-    `;
+    <h2>TC: ${transaction_cost}$,
+        C: ${commission}$,
+        L: x${leverage},
+        SLimit: ${stop_limit * 100}%,
+        SLoss: ${stop_loss * 100}%
+    </h2>`;
 
     let maxWin = 0;
     let maxLoss = 0;
@@ -207,7 +211,9 @@ export function loadChart(
     const w_calls = Array.from(wins);
     const l_calls = Array.from(losses);
 
-    $('#income').innerHTML += `Calls -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_calls, l_calls)}`;
+    $('#income').innerHTML += `
+    <span>Calls -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_calls, l_calls)}</span>
+    `;
 
     wins.length = losses.length = 0;
 
@@ -225,12 +231,23 @@ export function loadChart(
     const t_wins = w_calls.concat(w_puts);
     const t_losses = l_calls.concat(l_puts);
 
-    $('#income').innerHTML += `<br/>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}`;
-    $('#income').innerHTML += `<br/>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(t_wins, t_losses)}`;
-    $('#income').innerHTML += `<br/><br/>Max Win: ${maxWin.toFixed(2)}$, Min Win: ${minWin.toFixed(2)}$<br/>Max Loss: -${maxLoss.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$`;
+    $('#income').innerHTML += `
+    <br/>
+    <span>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}</span>
+    <br/>
+    <span>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(t_wins, t_losses)}</span>
+    <br/><br/>
+    <span>Max Win: ${maxWin.toFixed(2)}$, Min Win: ${minWin.toFixed(2)}$</span>
+    <br/>
+    <span>Max Loss: -${maxLoss.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$</span>
+    `;
 
     bars(df)
     line(toLine(ta.sma[20] as number[]), 'SMA 20', 2, '#0A5');
     markers(firstOf(calls), firstOf(puts), orderMarks);
+
+    // const smi = smi_top.map((t, i) => t / (0.5 * smi_bot[i]))
+    // line(toLine(smi), 'SMI 10', 2, '#0A0');
+
 }
 
