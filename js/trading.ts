@@ -32,12 +32,12 @@ export function loadChart(
 ) {
     function toCall(cond: boolean, i: number): Mark | undefined {
         if (!cond) return;
-        return arrow(`Call ${i}`, 'belowBar', '#0f0', 'arrowUp');
+        return arrow(`Call (${i})`, 'belowBar', '#0f0', 'arrowUp');
     }
 
     function toPut(cond: boolean, i: number): Mark | undefined {
         if (!cond) return;
-        return arrow(`Put ${i}`, 'aboveBar', '#f00', 'arrowDown');
+        return arrow(`Put (${i})`, 'aboveBar', '#f00', 'arrowDown');
     }
 
     const df = (i: number) => ({ open: open[i], high: high[i], low: low[i], close: close[i] });
@@ -127,6 +127,10 @@ export function loadChart(
     const stop_limit = 0.2;
     const stop_loss = 0.2;
 
+    $('#income').innerHTML = `
+    <h2>TC: ${transaction_cost}$, C: ${commission}$, L: x${leverage}, SLimit: ${stop_limit * 100}%, SLoss: ${stop_loss * 100}%</h2>
+    `;
+
     let maxWin = 0;
     let maxLoss = 0;
     let minWin = Infinity;
@@ -138,8 +142,8 @@ export function loadChart(
         winCond: CloseCond,
         lossCond: CloseCond,
         exitWinCond: CloseCond,
-        winArrow: (time: Time, i: number) => Mark,
-        lossArrow: (time: Time, i: number) => Mark
+        winArrow: (time: Time, i: number, p: number) => Mark,
+        lossArrow: (time: Time, i: number, p: number) => Mark
     ) {
         firstOf(orders).forEach(data => {
             const idx = candles.findIndex(c => c.time === data.time);
@@ -147,7 +151,10 @@ export function loadChart(
 
             function checkWinLoss(time: Time, close: number, wcond: CloseCond, lcond: CloseCond): boolean {
                 const orderBuy = candles[idx].close;
-                const percent = (Math.abs(orderBuy - close) / orderBuy) * leverage / 0.5;
+                const percentApprox = (Math.abs(orderBuy - close) / orderBuy) * leverage / 0.5;
+
+                // 150% == 0.32
+                const percent = percentApprox / 0.3
 
                 if (wcond(close, orderBuy, percent)) {
                     const win = transaction_cost * percent - commission;
@@ -156,7 +163,7 @@ export function loadChart(
                     maxWin = Math.max(maxWin, win);
                     minWin = Math.min(minWin, win);
 
-                    orderMarks.push(winArrow(time, idx));
+                    orderMarks.push(winArrow(time, idx, percent));
                     wins.push(time);
 
                     return true;
@@ -167,7 +174,7 @@ export function loadChart(
                     minLoss = Math.min(minLoss, loss);
                     maxLoss = Math.max(maxLoss, loss);
 
-                    orderMarks.push(lossArrow(time, idx));
+                    orderMarks.push(lossArrow(time, idx, percent));
                     losses.push(time);
 
                     return true;
@@ -193,14 +200,14 @@ export function loadChart(
         (c, o, p) => c > o && p >= stop_limit,
         (c, o, p) => c < o && p >= stop_loss,
         (c, o, _) => c > o,
-        (t, i) => arrow(`Call Win ${i}`, 'aboveBar', '#0f9', 'arrowDown', t),
-        (t, i) => arrow(`Call Loss ${i}`, 'aboveBar', '#0f2', 'arrowDown', t)
+        (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
+        (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
     );
 
     const w_calls = Array.from(wins);
     const l_calls = Array.from(losses);
 
-    $('#income').innerHTML = `Calls -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_calls, l_calls)}`;
+    $('#income').innerHTML += `Calls -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_calls, l_calls)}`;
 
     wins.length = losses.length = 0;
 
@@ -208,8 +215,8 @@ export function loadChart(
         (c, o, p) => c < o && p >= stop_limit,
         (c, o, p) => c > o && p >= stop_loss,
         (c, o, _) => c < o,
-        (t, i) => arrow(`Put Win ${i}`, 'aboveBar', '#f09', 'arrowDown', t),
-        (t, i) => arrow(`Put Loss ${i}`, 'aboveBar', '#f02', 'arrowDown', t)
+        (t, i, p) => arrow(`Put Win (${i}) ${(p * 100).toFixed(2)}%}`, 'aboveBar', '#f09', 'arrowDown', t),
+        (t, i, p) => arrow(`Put Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#f02', 'arrowDown', t)
     );
 
     const w_puts = Array.from(wins);
