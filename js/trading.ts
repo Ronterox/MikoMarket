@@ -66,7 +66,11 @@ export function loadChart(
 
     const calls_bb_ham_engulfing = (i: number) => {
         const lastDay = getDayIdx(i, -1);
-        const can_pdh = close[i] <= pdh[lastDay];
+        let can_pdh = close[i] <= pdh[lastDay];
+
+        if (!can_pdh) {
+            can_pdh = close[max(0, i - 60)] >= pdh[lastDay];
+        }
         // const can_pdh = true;
 
         const smi = smi_top[i] / (0.5 * smi_bot[i]);
@@ -92,7 +96,11 @@ export function loadChart(
 
     const puts_bb_han_engulfing = (i: number) => {
         const lastDay = getDayIdx(i, -1);
-        const can_pdl = close[i] >= pdl[lastDay];
+        let can_pdl = close[i] >= pdl[lastDay];
+
+        if (!can_pdl) {
+            // can_pdl = close[max(0, i - 60)] <= pdl[lastDay];
+        }
         // const can_pdl = true;
 
         const smi = smi_top[i] / (0.5 * smi_bot[i]);
