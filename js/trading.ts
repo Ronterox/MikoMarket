@@ -64,28 +64,48 @@ export function loadChart(
     const smi_top = ta_ema(ta_ema(avg_top, 3, q), 3, q);
     const smi_bot = ta_ema(ta_ema(avg_bot, 3, q), 3, q);
 
+    // --- Globals
+
+    const pd_candles = 60
+    const smi_overbought = 0.6
+    const smi_oversold = -0.6;
+    const hanham_body = 0.5;
+
+    const stop_limit = 0.2;
+    const stop_loss = 0.2;
+    const length_limit = 20;
+    const leverage = 50;
+
+    const transaction_cost = 1000;
+    const commission = 0.02 * transaction_cost;
+
+    $('#income').innerHTML = `
+    <h2>TC: ${transaction_cost}$,
+        C: ${commission}$,
+        L: x${leverage},
+        SLimit: ${stop_limit * 100}%,
+        SLoss: ${stop_loss * 100}%
+        Length: ${length_limit}
+    </h2>`;
+
     const calls_bb_ham_engulfing = (i: number) => {
         const lastDay = getDayIdx(i, -1);
         let can_pdh = close[i] <= pdh[lastDay];
 
         if (!can_pdh) {
-            can_pdh = close[max(0, i - 60)] >= pdh[lastDay];
+            can_pdh = close[max(0, i - pd_candles)] >= pdh[lastDay];
         }
-        // const can_pdh = true;
 
         const smi = smi_top[i] / (0.5 * smi_bot[i]);
-        const oversold = -0.6;
-        const is_oversold = smi <= oversold;
-        // const is_oversold = true;
+        const is_oversold = smi <= smi_oversold;
 
-        const percentage = 0.5;
         const li = max(i - 1, 0);
         const is_red = open[li] > close[li];
 
         const l_lower_tail = is_red ? close[li] - low[li] : open[li] - low[li];
         const l_body = abs(open[li] - close[li]);
 
-        const l_hammer = l_lower_tail >= l_body * percentage;
+        const l_hammer = l_lower_tail >= l_body * hanham_body;
         const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
 
         const lower_bb = ta.sma[20][i] - 2 * ta.stddev[20][i];
@@ -99,23 +119,19 @@ export function loadChart(
         let can_pdl = close[i] >= pdl[lastDay];
 
         if (!can_pdl) {
-            // can_pdl = close[max(0, i - 60)] <= pdl[lastDay];
+            can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
         }
-        // const can_pdl = true;
 
         const smi = smi_top[i] / (0.5 * smi_bot[i]);
-        const overbought = 0.6
-        const is_overbought = smi >= overbought
-        // const is_overbought = true;
+        const is_overbought = smi >= smi_overbought
 
-        const percentage = 0.5;
         const li = max(i - 1, 0);
         const is_red = open[li] > close[li];
 
         const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
         const l_body = abs(open[li] - close[li]);
 
-        const l_hanger = l_upper_tail >= l_body * percentage;
+        const l_hanger = l_upper_tail >= l_body * hanham_body;
         const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
 
         const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
@@ -145,23 +161,6 @@ export function loadChart(
     const [calls, puts] = [calls_bb_ham_engulfing, puts_bb_han_engulfing];
 
     // 0.5 == xN / 10
-
-    const transaction_cost = 1000;
-    const commission = 0.02 * transaction_cost;
-    const leverage = 50;
-
-    const stop_limit = 0.2;
-    const stop_loss = 0.2;
-    const length_limit = 20;
-
-    $('#income').innerHTML = `
-    <h2>TC: ${transaction_cost}$,
-        C: ${commission}$,
-        L: x${leverage},
-        SLimit: ${stop_limit * 100}%,
-        SLoss: ${stop_loss * 100}%
-        Length: ${length_limit}
-    </h2>`;
 
     let maxWin = 0;
     let maxLoss = 0;
