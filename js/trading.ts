@@ -66,29 +66,7 @@ export function loadChart(
 
     // --- Globals
 
-    const pd_candles = 60
-    const smi_overbought = 0.6
-    const smi_oversold = -0.6;
-    const hanham_body = 0.5;
-
-    const stop_limit = 0.2;
-    const stop_loss = 0.2;
-    const length_limit = 20;
-    const leverage = 50;
-
-    const transaction_cost = 1000;
-    const commission = 0.02 * transaction_cost;
-
-    $('#income').innerHTML = `
-    <h2>TC: ${transaction_cost}$,
-        C: ${commission}$,
-        L: x${leverage},
-        SLimit: ${stop_limit * 100}%,
-        SLoss: ${stop_loss * 100}%
-        Length: ${length_limit}
-    </h2>`;
-
-    const calls_bb_ham_engulfing = (i: number) => {
+    const calls_formula = (pd_candles: number, smi_oversold: number, hanham_body: number) => (i: number) => {
         const lastDay = getDayIdx(i, -1);
         let can_pdh = close[i] <= pdh[lastDay];
 
@@ -114,36 +92,36 @@ export function loadChart(
         return toCall(can_pdh && !c_red && is_oversold && low[i] < lower_bb && l_hammer && engulfing, i);
     };
 
-    const puts_bb_han_engulfing = (i: number) => {
-        const lastDay = getDayIdx(i, -1);
-        let can_pdl = close[i] >= pdl[lastDay];
-
-        if (!can_pdl) {
-            can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
-        }
-
-        const smi = smi_top[i] / (0.5 * smi_bot[i]);
-        const is_overbought = smi >= smi_overbought
-
-        const li = max(i - 1, 0);
-        const is_red = open[li] > close[li];
-
-        const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
-        const l_body = abs(open[li] - close[li]);
-
-        const l_hanger = l_upper_tail >= l_body * hanham_body;
-        const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
-
-        const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
-        const c_red = open[i] > close[i];
-
-        return toPut(can_pdl && c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing, i);
-    };
+    // const puts_formula = (pd_candles: number, smi_overbought: number, hanham_body: number) => (i: number) => {
+    //     const lastDay = getDayIdx(i, -1);
+    //     let can_pdl = close[i] >= pdl[lastDay];
+    //
+    //     if (!can_pdl) {
+    //         can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
+    //     }
+    //
+    //     const smi = smi_top[i] / (0.5 * smi_bot[i]);
+    //     const is_overbought = smi >= smi_overbought
+    //
+    //     const li = max(i - 1, 0);
+    //     const is_red = open[li] > close[li];
+    //
+    //     const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
+    //     const l_body = abs(open[li] - close[li]);
+    //
+    //     const l_hanger = l_upper_tail >= l_body * hanham_body;
+    //     const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
+    //
+    //     const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
+    //     const c_red = open[i] > close[i];
+    //
+    //     return toPut(can_pdl && c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing, i);
+    // };
 
     const wins: Time[] = [];
     const losses: Time[] = [];
 
-    const orderMarks = [] as Mark[];
+    // const orderMarks = [] as Mark[];
     const candles = zip<Candle>(df);
 
     const size = 24 * 60;
@@ -158,8 +136,6 @@ export function loadChart(
     const pdh = dailyCandle.map(d => d.reduce((a, b) => max(a, b.high), 0));
     const pdl = dailyCandle.map(d => d.reduce((a, b) => min(a, b.low), Infinity));
 
-    const [calls, puts] = [calls_bb_ham_engulfing, puts_bb_han_engulfing];
-
     // 0.5 == xN / 10
 
     let maxWin = 0;
@@ -167,9 +143,9 @@ export function loadChart(
     let minWin = Infinity;
     let minLoss = Infinity;
     let income = 0;
-
     function ordersClosure(
         orders: Iter,
+        transaction_cost: number,
         src: z.infer<typeof Source>,
         winCond: CloseCond,
         lossCond: CloseCond,
@@ -177,6 +153,9 @@ export function loadChart(
         winArrow: (time: Time, i: number, p: number) => Mark,
         lossArrow: (time: Time, i: number, p: number) => Mark
     ) {
+        wins.length = losses.length = 0;
+        income = 0;
+
         firstOf(orders).forEach(data => {
             const idx = candles.findIndex(c => c.time === data.time);
             if (idx === -1) return;
@@ -187,6 +166,7 @@ export function loadChart(
 
                 // 150% == 0.32
                 const percent = percentApprox / 0.3
+                const commission = 0.02 * transaction_cost;
 
                 if (wcond(close, orderBuy, percent)) {
                     const win = transaction_cost * percent - commission;
@@ -195,7 +175,7 @@ export function loadChart(
                     maxWin = max(maxWin, win);
                     minWin = min(minWin, win);
 
-                    orderMarks.push(winArrow(time, idx, percent));
+                    // orderMarks.push(winArrow(time, idx, percent));
                     wins.push(time);
 
                     return true;
@@ -206,7 +186,7 @@ export function loadChart(
                     minLoss = min(minLoss, loss);
                     maxLoss = max(maxLoss, loss);
 
-                    orderMarks.push(lossArrow(time, idx, percent));
+                    // orderMarks.push(lossArrow(time, idx, percent));
                     losses.push(time);
 
                     return true;
@@ -223,7 +203,98 @@ export function loadChart(
         });
     }
 
-    ordersClosure(calls,
+    let seed = 5;
+    function random() {
+        var x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    }
+
+    function gaussianRandom(mean = 0, stdev = 1) {
+        const u = 1 - random(); // Converting [0,1) to (0,1]
+        const v = random();
+        const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        // Transform to the desired mean and standard deviation:
+        return z * stdev + mean;
+    }
+
+    let pd_candles = 60
+    // const smi_overbought = 0.6
+    let smi_oversold = -0.6;
+    let hanham_body = 0.5;
+
+    let stop_limit = 0.2;
+    let stop_loss = 0.2;
+    let length_limit = 20;
+    let leverage = 50;
+
+    const data = [pd_candles, smi_oversold, hanham_body, stop_limit, stop_loss];
+    let ws = Array.from({ length: data.length }).map(() => gaussianRandom());
+
+    const transaction_cost = 1000;
+
+    for (let i = 0; i < 100; i++) {
+        [pd_candles, smi_oversold, hanham_body, stop_limit, stop_loss] = data.map((d, i) => Math.max(0, ws[i] * d));
+
+        ordersClosure(calls_formula(pd_candles, smi_oversold, hanham_body),
+            transaction_cost,
+            'high',
+            (c, o, p) => c > o && p >= stop_limit,
+            (c, o, p) => c < o && p >= stop_loss,
+            (c, o, _) => c > o,
+            (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
+            (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
+        );
+
+        const bestIncome = income;
+        // const bestWinrate = wins.length / (wins.length + losses.length);
+
+        const mutation = Array.from({ length: data.length }).map(() => gaussianRandom());
+        const cws = ws.map((w, i) => w + mutation[i] * 1.0);
+        [pd_candles, smi_oversold, hanham_body, stop_limit, stop_loss] = data.map((d, i) => Math.max(0, cws[i] * d));
+
+        ordersClosure(calls_formula(pd_candles, smi_oversold, hanham_body),
+            transaction_cost,
+            'high',
+            (c, o, p) => c > o && p >= stop_limit,
+            (c, o, p) => c < o && p >= stop_loss,
+            (c, o, _) => c > o,
+            (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
+            (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
+        );
+
+        const winrate = wins.length / (wins.length + losses.length);
+
+        if (i % 10 == 0) console.log(i, income, bestIncome);
+        // if (i % 10 == 0) console.log(i, winrate, bestWinrate);
+
+        if (income > bestIncome) {
+        // if (winrate > bestWinrate) {
+            ws = cws;
+            console.log(
+                ...[
+                    'pd_candles',
+                    'smi_oversold',
+                    'hanham_body',
+                    'stop_limit',
+                    'stop_loss'
+                ].map((d, i) => { return { [d]: ws[i] * data[i] }; })
+            );
+        }
+    }
+
+    console.log('Final', ws);
+    [pd_candles, smi_oversold, hanham_body, stop_limit, stop_loss] = data.map((d, i) => Math.max(0, ws[i] * d));
+
+    $('#income').innerHTML = `
+    <h2>TC: ${transaction_cost}$,
+        L: x${leverage},
+        SLimit: ${stop_limit * 100}%,
+        SLoss: ${stop_loss * 100}%
+        Length: ${length_limit}
+    </h2>`;
+
+    ordersClosure(calls_formula(pd_candles, smi_oversold, hanham_body),
+        transaction_cost,
         'high',
         (c, o, p) => c > o && p >= stop_limit,
         (c, o, p) => c < o && p >= stop_loss,
@@ -239,26 +310,30 @@ export function loadChart(
     <span>Calls -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_calls, l_calls)}</span>
     `;
 
-    wins.length = losses.length = 0;
+    // ordersClosure(puts_formula(pd_candles, smi_overbought, hanham_body),
+    //     transaction_cost,
+    //     'low',
+    //     (c, o, p) => c < o && p >= stop_limit,
+    //     (c, o, p) => c > o && p >= stop_loss,
+    //     (c, o, _) => c < o,
+    //     (t, i, p) => arrow(`Put Win (${i}) ${(p * 100).toFixed(2)}%}`, 'aboveBar', '#f09', 'arrowDown', t),
+    //     (t, i, p) => arrow(`Put Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#f02', 'arrowDown', t)
+    // );
 
-    ordersClosure(puts,
-        'low',
-        (c, o, p) => c < o && p >= stop_limit,
-        (c, o, p) => c > o && p >= stop_loss,
-        (c, o, _) => c < o,
-        (t, i, p) => arrow(`Put Win (${i}) ${(p * 100).toFixed(2)}%}`, 'aboveBar', '#f09', 'arrowDown', t),
-        (t, i, p) => arrow(`Put Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#f02', 'arrowDown', t)
-    );
-
-    const w_puts = Array.from(wins);
-    const l_puts = Array.from(losses);
+    // const w_puts = Array.from(wins);
+    // const l_puts = Array.from(losses);
+    const w_puts = [];
+    const l_puts = [];
 
     const t_wins = w_calls.concat(w_puts);
     const t_losses = l_calls.concat(l_puts);
 
+    // $('#income').innerHTML += `
+    // <br/>
+    // <span>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}</span>
+    // `;
+
     $('#income').innerHTML += `
-    <br/>
-    <span>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}</span>
     <br/>
     <span>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(t_wins, t_losses)}</span>
     <br/><br/>
@@ -271,7 +346,7 @@ export function loadChart(
 
     bars(df)
     line(toLine(ta.sma[20] as number[]), 'SMA 20', 2, '#0A5');
-    markers(firstOf(calls), firstOf(puts), orderMarks);
+    // markers(firstOf(calls), firstOf(puts), orderMarks);
 
     // const smi = smi_top.map((t, i) => t / (0.5 * smi_bot[i]))
     // line(toLine(smi), 'SMI 10', 2, '#0A0');
