@@ -134,7 +134,7 @@ export function loadChart(
     const getDayIdx = (i: number, di: number = 0) => max(0, min(floor(i / size) % length, length - 1) + di);
 
     const pdh = dailyCandle.map(d => d.reduce((a, b) => max(a, b.high), 0));
-    const pdl = dailyCandle.map(d => d.reduce((a, b) => min(a, b.low), Infinity));
+    // const pdl = dailyCandle.map(d => d.reduce((a, b) => min(a, b.low), Infinity));
 
     // 0.5 == xN / 10
 
@@ -222,17 +222,19 @@ export function loadChart(
     let smi_oversold = -0.6;
     let hanham_body = 0.5;
 
-    let stop_limit = 0.2;
+    let stop_limit = 0.5;
     let stop_loss = 0.2;
     let length_limit = 20;
     let leverage = 50;
 
     const data = [pd_candles, smi_oversold, hanham_body, stop_limit, stop_loss];
-    let ws = Array.from({ length: data.length }).map(() => gaussianRandom());
+    // let ws = Array.from({ length: data.length }).map(() => gaussianRandom());
+    let ws = Array.from({ length: data.length }).map(() => 1);
 
     const transaction_cost = 1000;
+    const train = false;
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 100 && train; i++) {
         [pd_candles, smi_oversold, hanham_body, stop_limit, stop_loss] = data.map((d, i) => Math.max(0, ws[i] * d));
 
         ordersClosure(calls_formula(pd_candles, smi_oversold, hanham_body),
