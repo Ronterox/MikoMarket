@@ -60,6 +60,17 @@ const series = chart.addCandlestickSeries({ title: SYMBOL });
     const [data, ta] = await Promise.all([data_req, ta_req]);
     const zip = <T>(arr: Iter<T>) => data.time.map((t, i) => ({ time: t, ...arr(i) }));
 
+    ta.ema = (src: number[], length: number, start: number): number[] => {
+        const ema = Array.from({ length: start }, (_, i) => ta.sma[length][i] ?? 0);
+        const multiplier = 2 / (length + 1);
+
+        for (let i = start; i < src.length; i++) {
+            ema.push(src[i] * multiplier + ema[Math.max(0, i - 1)] * (1 - multiplier));
+        }
+
+        return ema;
+    };
+
     function arrow(text: string, position: Position, color: Color, shape: Shape, time?: Time): Mark {
         return time ? { time, text, position, color, shape } : { text, position, color, shape } as Mark;
     }
