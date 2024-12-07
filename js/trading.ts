@@ -2,9 +2,6 @@ import type { Time } from 'lightweight-charts';
 import type { Candle, DataFrame, Functionalities, GraphicFunctionalities, Iter, Mark } from './types';
 import { z } from 'zod';
 
-const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
-const { max, min, floor, abs } = Math;
-
 const DataList = z.custom<Record<number, number>>().default({});
 
 export const TechnicalAnalysis = z.object({
@@ -25,9 +22,14 @@ export const Sources = z.record(TechnicalAnalysis.keyof(), Source).parse({
 
 type CloseCond = (close: number, orderBuy: number, winPercent: number) => boolean;
 
+const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
+const { max, min, floor, abs } = Math;
+
+const relu = (x: number) => max(0, x);
+
 let seed = new Date().valueOf();
 function random() {
-    var x = Math.sin(seed++) * 10000;
+    const x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
 }
 
@@ -49,7 +51,6 @@ export function loadChart(
 ) {
     const df = (i: number) => ({ open: open[i], high: high[i], low: low[i], close: close[i] });
     const toLine = (series: number[]) => (i: number) => ({ value: series[i] });
-
     const winrate = (a: any[], b: any[]) => ((a.length / (a.length + b.length)) * 100).toFixed(2) + '%';
 
     const q = 10;
@@ -129,8 +130,9 @@ export function loadChart(
 
     function ordersSimulation(
         orders: Iter,
-        { transaction_cost, src, length_limit, leverage }: {
-            transaction_cost: number, src: z.infer<typeof Source>, length_limit: number, leverage: number
+        { budget, max_cost, src, length_limit, leverage }: {
+            budget: number, max_cost: number, src: z.infer<typeof Source>,
+            length_limit: number, leverage: number
         },
         winCond: CloseCond,
         lossCond: CloseCond,
@@ -143,15 +145,16 @@ export function loadChart(
         const losses: number[] = [];
         const orderMarks = [] as Mark[];
 
-        let income = 0;
-
         firstOf(orders).forEach(data => {
             const idx = candles.findIndex(c => c.time === data.time);
             if (idx === -1) return;
 
             function checkWinLoss(time: Time, close: number, wcond: CloseCond, lcond: CloseCond): boolean {
+                if (budget <= 0) return true;
+
                 const orderBuy = candles[idx].close;
                 const percentApprox = (abs(orderBuy - close) / orderBuy) * leverage / 0.5;
+                const transaction_cost = min(budget, max_cost);
 
                 // 150% == 0.32
                 const percent = percentApprox / 0.3
@@ -159,15 +162,15 @@ export function loadChart(
 
                 if (wcond(close, orderBuy, percent)) {
                     const win = transaction_cost * percent - commission;
-                    income += win;
+                    budget += win;
 
                     orderMarks.push(winArrow(time, idx, percent));
                     wins.push(win);
 
                     return true;
                 } else if (lcond(close, orderBuy, percent)) {
-                    const loss = transaction_cost * percent + commission;
-                    income -= loss;
+                    const loss = min(transaction_cost * percent + commission, transaction_cost);
+                    budget -= loss;
 
                     orderMarks.push(lossArrow(time, idx, percent));
                     losses.push(loss);
@@ -186,7 +189,23 @@ export function loadChart(
             checkWinLoss(candles[i].time, candles[i][src], exitWinCond, () => true);
         });
 
-        return [income, wins, losses, orderMarks];
+        return [budget, wins, losses, orderMarks];
+    }
+
+
+    const applyWeights = (xs: number[], ws: number[]) => xs.map((x, i) => relu(ws[i] * x + ws[ws.length - 1]));
+
+    function simulationStep(xs: number[], ws: number[]): [number, number[], number[], Mark[]] {
+        const res = applyWeights(xs, ws);
+
+        return ordersSimulation(calls_formula(res[0], res[1], res[2]),
+            { budget, max_cost, src: 'high', length_limit: res[5], leverage },
+            (c, o, p) => c > o && p >= res[3],
+            (c, o, p) => c < o && p >= res[4],
+            (c, o, _) => c > o,
+            (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
+            (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
+        );
     }
 
     const data = {
@@ -205,40 +224,25 @@ export function loadChart(
     const checkpoint = localStorage.getItem(checkpoint_name);
 
     const leverage = 50;
-    const transaction_cost = 1000;
+    const budget = 1000;
+    const max_cost = 1000;
     const train = false;
 
     let xs = Object.values(data).concat([1]); // Bias
     let ws: number[] = checkpoint ? JSON.parse(checkpoint) : Array.from({ length: xs.length }).map(() => gaussianRandom());
 
     for (let i = 0; i < 500 && train; i++) {
-        let res = xs.map((x, i) => Math.max(0, ws[i] * x + ws[ws.length - 1]));
-
-        const [bestIncome] = ordersSimulation(calls_formula(res[0], res[1], res[2]),
-            { transaction_cost, src: 'high', length_limit: res[5], leverage },
-            (c, o, p) => c > o && p >= res[3],
-            (c, o, p) => c < o && p >= res[4],
-            (c, o, _) => c > o,
-            (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
-            (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
-        );
+        const [bestIncome] = simulationStep(xs, ws);
 
         const cws = ws.map(w => w + gaussianRandom() * 1.0);
-        res = xs.map((x, i) => Math.max(0, cws[i] * x + cws[cws.length - 1]));
-
-        const [income] = ordersSimulation(calls_formula(res[0], res[1], res[2]),
-            { transaction_cost, src: 'high', length_limit: res[5], leverage },
-            (c, o, p) => c > o && p >= res[3],
-            (c, o, p) => c < o && p >= res[4],
-            (c, o, _) => c > o,
-            (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
-            (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
-        );
+        const [income] = simulationStep(xs, cws);
 
         if (income > bestIncome) {
             ws = cws;
             console.log(
-                ...Object.keys(data).map((d, i) => { return { [d]: ws[i] * xs[i] + ws[ws.length - 1] }; })
+                ...Object.keys(data).map((d, i) => {
+                    return { [d]: ws[i] * xs[i] + ws[ws.length - 1] };
+                })
             );
         }
 
@@ -248,47 +252,37 @@ export function loadChart(
         }
     }
 
-    const res = xs.map((x, i) => Math.max(0, ws[i] * x + ws[ws.length - 1]));
+    const res = applyWeights(xs, ws);
+    const [income, c_wins, c_loss, orderMarks] = simulationStep(xs, ws);
 
-    const [income, c_wins, c_loss, orderMarks] = ordersSimulation(calls_formula(res[0], res[1], res[2]),
-        { transaction_cost, src: 'high', length_limit: res[5], leverage },
-        (c, o, p) => c > o && p >= res[3],
-        (c, o, p) => c < o && p >= res[4],
-        (c, o, _) => c > o,
-        (t, i, p) => arrow(`Call Win (${i}) ${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f9', 'arrowDown', t),
-        (t, i, p) => arrow(`Call Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#0f2', 'arrowDown', t)
-    );
+    const stats = (arr: number[]): [number, number, number] => {
+        const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const max = arr.reduce((a, b) => Math.max(a, b), 0);
+        const min = arr.reduce((a, b) => Math.min(a, b), 0);
+        return [min, max, avg];
+    }
+
+    const [minWin, maxWin, avgWin] = stats(c_wins);
+    const [minLoss, maxLoss, avgLoss] = stats(c_loss);
 
     $('#income').innerHTML = `
-    <h2>TC: ${transaction_cost}$,
+    <h2>Budget: ${budget}$,
         L: x${leverage},
         SLimit: ${(res[3] * 100).toFixed(2)}%,
         SLoss: ${(res[4] * 100).toFixed(2)}%
         Length: ${res[5]}
-    </h2>`;
-
-    $('#income').innerHTML += `
+    </h2>
     <span>Calls -> Wins: ${c_wins.length}, Losses: ${c_loss.length}, Winrate: ${winrate(c_wins, c_loss)}</span>
-    `;
-
-    const t_wins = c_wins;
-    const t_losses = c_loss;
-
-    const maxWin = t_wins.reduce((a, b) => max(a, b), 0);
-    const minWin = t_wins.reduce((a, b) => min(a, b), 0);
-
-    const maxLoss = t_losses.reduce((a, b) => max(a, b), 0);
-    const minLoss = t_losses.reduce((a, b) => min(a, b), 0);
-
-    $('#income').innerHTML += `
     <br/>
-    <span>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(t_wins, t_losses)}</span>
+    <span>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(c_wins, c_loss)}</span>
     <br/><br/>
-    <span>Max Win: ${maxWin.toFixed(2)}$, Min Win: ${minWin.toFixed(2)}$</span>
+    <span>Max Win: ${maxWin.toFixed(2)}$, Max Loss: -${maxLoss.toFixed(2)}$</span>
     <br/>
-    <span>Max Loss: -${maxLoss.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$</span>
+    <span>Min Win: ${minWin.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$</span>
+    <br/>
+    <span>Avg Win: ${avgWin.toFixed(2)}$, Avg Loss: -${avgLoss.toFixed(2)}$</span>
     <br/><br/>
-    <span>Total Trades: ${t_wins.length + t_losses.length}</span>
+    <span>Total Trades: ${c_wins.length + c_loss.length}</span>
     `;
 
     // ordersClosure(puts_formula(pd_candles, smi_overbought, hanham_body),
@@ -311,4 +305,3 @@ export function loadChart(
     line(toLine(ta.sma[20] as number[]), 'SMA 20', 2, '#0A5');
     markers(firstOf(calls_formula(res[0], res[1], res[2])), orderMarks);
 }
-
