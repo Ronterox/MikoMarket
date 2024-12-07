@@ -23,6 +23,7 @@ export const Sources = z.record(TechnicalAnalysis.keyof(), Source).parse({
 type CloseCond = (close: number, orderBuy: number, winPercent: number) => boolean;
 
 const $ = <T = HTMLElement>(query: string) => document.querySelector(query) as T;
+const html = (strings: TemplateStringsArray, ...values: any[]) => String.raw({ raw: strings }, ...values);
 const { max, min, floor, abs } = Math;
 
 const relu = (x: number) => max(0, x);
@@ -41,6 +42,13 @@ function gaussianRandom(mean = 0, stdev = 1) {
     const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
     // Transform to the desired mean and standard deviation:
     return z * stdev + mean;
+}
+
+function stats(arr: number[]): [number, number, number] {
+    const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const max = arr.reduce((a, b) => Math.max(a, b), 0);
+    const min = arr.reduce((a, b) => Math.min(a, b), 0);
+    return [min, max, avg];
 }
 
 export function loadChart(
@@ -87,32 +95,32 @@ export function loadChart(
         return is_call && arrow(`Call (${i})`, 'belowBar', '#0f0', 'arrowUp');
     };
 
-    // const puts_formula = (pd_candles: number, smi_overbought: number, hanham_body: number) => (i: number) => {
-    //     const lastDay = getDayIdx(i, -1);
-    //     let can_pdl = close[i] >= pdl[lastDay];
-    //
-    //     if (!can_pdl) {
-    //         can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
-    //     }
-    //
-    //     const smi = smi_top[i] / (0.5 * smi_bot[i]);
-    //     const is_overbought = smi >= smi_overbought
-    //
-    //     const li = max(i - 1, 0);
-    //     const is_red = open[li] > close[li];
-    //
-    //     const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
-    //     const l_body = abs(open[li] - close[li]);
-    //
-    //     const l_hanger = l_upper_tail >= l_body * hanham_body;
-    //     const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
-    //
-    //     const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
-    //     const c_red = open[i] > close[i];
-    //
-    //     const is_put = can_pdl && c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing;
-    //     return is_put && arrow(`Put (${i})`, 'aboveBar', '#f00', 'arrowDown');
-    // };
+    const puts_formula = (pd_candles: number, smi_overbought: number, hanham_body: number) => (i: number) => {
+        const lastDay = getDayIdx(i, -1);
+        let can_pdl = close[i] >= pdl[lastDay];
+
+        if (!can_pdl) {
+            can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
+        }
+
+        const smi = smi_top[i] / (0.5 * smi_bot[i]);
+        const is_overbought = smi >= smi_overbought
+
+        const li = max(i - 1, 0);
+        const is_red = open[li] > close[li];
+
+        const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
+        const l_body = abs(open[li] - close[li]);
+
+        const l_hanger = l_upper_tail >= l_body * hanham_body;
+        const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
+
+        const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
+        const c_red = open[i] > close[i];
+
+        const is_put = can_pdl && c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing;
+        return is_put && arrow(`Put (${i})`, 'aboveBar', '#f00', 'arrowDown');
+    };
 
     const candles = zip<Candle>(df);
 
@@ -126,7 +134,7 @@ export function loadChart(
     const getDayIdx = (i: number, di: number = 0) => max(0, min(floor(i / size) % length, length - 1) + di);
 
     const pdh = dailyCandle.map(d => d.reduce((a, b) => max(a, b.high), 0));
-    // const pdl = dailyCandle.map(d => d.reduce((a, b) => min(a, b.low), Infinity));
+    const pdl = dailyCandle.map(d => d.reduce((a, b) => min(a, b.low), Infinity));
 
     function ordersSimulation(
         orders: Iter,
@@ -195,7 +203,7 @@ export function loadChart(
 
     const applyWeights = (xs: number[], ws: number[]) => xs.map((x, i) => relu(ws[i] * x + ws[ws.length - 1]));
 
-    function simulationStep(xs: number[], ws: number[]): [number, number[], number[], Mark[]] {
+    function simulationStepCall(xs: number[], ws: number[]): [number, number[], number[], Mark[]] {
         const res = applyWeights(xs, ws);
 
         return ordersSimulation(calls_formula(res[0], res[1], res[2]),
@@ -208,9 +216,98 @@ export function loadChart(
         );
     }
 
-    const data = {
+    function simulationStepPut(xs: number[], ws: number[]): [number, number[], number[], Mark[]] {
+        const res = applyWeights(xs, ws);
+
+        return ordersSimulation(puts_formula(res[0], res[1], res[2]),
+            { budget, max_cost, src: 'low', length_limit: res[5], leverage },
+            (c, o, p) => c < o && p >= res[3],
+            (c, o, p) => c > o && p >= res[4],
+            (c, o, _) => c < o,
+            (t, i, p) => arrow(`Put Win (${i}) ${(p * 100).toFixed(2)}%}`, 'aboveBar', '#f09', 'arrowDown', t),
+            (t, i, p) => arrow(`Put Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#f02', 'arrowDown', t)
+        );
+    }
+
+    function training(
+        data: Object,
+        simulationStep: (xs: number[], ws: number[]) => [number, number[], number[], Mark[]],
+        epochs: number,
+        train: boolean
+    ): [number[], number[]] {
+        const checkpoint_name = Object.keys(data).join(',');
+        const checkpoint = localStorage.getItem(checkpoint_name);
+
+        let xs: number[] = Object.values(data).concat([1]); // Bias
+        let ws: number[] = checkpoint ? JSON.parse(checkpoint) : Array.from({ length: xs.length }).map(() => gaussianRandom());
+
+        for (let i = 1; i <= epochs && train; i++) {
+            const [bestIncome] = simulationStep(xs, ws);
+
+            const cws = ws.map(w => w + gaussianRandom() * 1.0);
+            const [income] = simulationStep(xs, cws);
+
+            if (income > bestIncome) {
+                ws = cws;
+                console.log(
+                    ...Object.keys(data_call).map((d, i) => {
+                        return { [d]: ws[i] * xs[i] + ws[ws.length - 1] };
+                    })
+                );
+            }
+
+            if (i % 10 == 0) {
+                localStorage.setItem(checkpoint_name, JSON.stringify(ws));
+                console.log(i, income, bestIncome);
+            }
+        }
+
+        return [xs, ws];
+    }
+
+    function getTrainingResults(
+        name: string,
+        data: Object,
+        simulationStep: (xs: number[], ws: number[]) => [number, number[], number[], Mark[]]): [string, number[], number[], Mark[]] {
+        const [xs, ws] = training(data, simulationStep, 500, false);
+
+        const res = applyWeights(xs, ws);
+        const [income, wins, loss, orderMarks] = simulationStep(xs, ws);
+
+        const [minWin, maxWin, avgWin] = stats(wins);
+        const [minLoss, maxLoss, avgLoss] = stats(loss);
+
+        const statsHtml =  html`
+        <summary>${name}</summary>
+        <span>
+            Budget: ${budget}$,
+            L: x${leverage},
+            SLimit: ${(res[3] * 100).toFixed(2)}%,
+            SLoss: ${(res[4] * 100).toFixed(2)}%
+            Length: ${res[5]}
+        </span>
+        <span>Wins: ${wins.length}, Losses: ${loss.length}, Winrate: ${winrate(wins, loss)}</span>
+        <br/>
+        <span>Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(wins, loss)}</span>
+        <br/><br/>
+        <span>Max Win: ${maxWin.toFixed(2)}$, Max Loss: -${maxLoss.toFixed(2)}$</span>
+        <br/>
+        <span>Min Win: ${minWin.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$</span>
+        <br/>
+        <span>Avg Win: ${avgWin.toFixed(2)}$, Avg Loss: -${avgLoss.toFixed(2)}$</span>
+        <br/><br/>
+        <span>Total Trades: ${wins.length + loss.length}</span>
+        `;
+
+        return [statsHtml, xs, ws, orderMarks];
+    }
+
+    const leverage = 50;
+    const budget = 1000;
+    const max_cost = 1000;
+
+    const data_call = {
         pd_candles: 60,
-        // smi_overbought: 0.6
         smi_oversold: -0.6,
         hanham_body: 0.5,
 
@@ -220,88 +317,35 @@ export function loadChart(
         length: 20,
     };
 
-    const checkpoint_name = Object.keys(data).join(',');
-    const checkpoint = localStorage.getItem(checkpoint_name);
+    const data_put = {
+        pd_candles: 60,
+        smi_overbought: 0.6,
+        hanham_body: 0.5,
 
-    const leverage = 50;
-    const budget = 1000;
-    const max_cost = 1000;
-    const train = false;
+        stop_limit: 0.5,
+        stop_loss: 0.2,
 
-    let xs = Object.values(data).concat([1]); // Bias
-    let ws: number[] = checkpoint ? JSON.parse(checkpoint) : Array.from({ length: xs.length }).map(() => gaussianRandom());
+        length: 20,
+    };
 
-    for (let i = 0; i < 500 && train; i++) {
-        const [bestIncome] = simulationStep(xs, ws);
+    const [callStats, xsCall, wsCall, calls] = getTrainingResults('Calls', data_call, simulationStepCall);
+    const [putStats, xsPut, wsPut, puts] = getTrainingResults('Puts', data_put, simulationStepPut);
 
-        const cws = ws.map(w => w + gaussianRandom() * 1.0);
-        const [income] = simulationStep(xs, cws);
-
-        if (income > bestIncome) {
-            ws = cws;
-            console.log(
-                ...Object.keys(data).map((d, i) => {
-                    return { [d]: ws[i] * xs[i] + ws[ws.length - 1] };
-                })
-            );
-        }
-
-        if (i % 10 == 0) {
-            localStorage.setItem(checkpoint_name, JSON.stringify(ws));
-            console.log(i, income, bestIncome);
-        }
-    }
-
-    const res = applyWeights(xs, ws);
-    const [income, c_wins, c_loss, orderMarks] = simulationStep(xs, ws);
-
-    const stats = (arr: number[]): [number, number, number] => {
-        const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
-        const max = arr.reduce((a, b) => Math.max(a, b), 0);
-        const min = arr.reduce((a, b) => Math.min(a, b), 0);
-        return [min, max, avg];
-    }
-
-    const [minWin, maxWin, avgWin] = stats(c_wins);
-    const [minLoss, maxLoss, avgLoss] = stats(c_loss);
-
-    $('#income').innerHTML = `
-    <h2>Budget: ${budget}$,
-        L: x${leverage},
-        SLimit: ${(res[3] * 100).toFixed(2)}%,
-        SLoss: ${(res[4] * 100).toFixed(2)}%
-        Length: ${res[5]}
-    </h2>
-    <span>Calls -> Wins: ${c_wins.length}, Losses: ${c_loss.length}, Winrate: ${winrate(c_wins, c_loss)}</span>
-    <br/>
-    <span>Total Income: ${income.toFixed(2)}$, Total Winrate: ${winrate(c_wins, c_loss)}</span>
-    <br/><br/>
-    <span>Max Win: ${maxWin.toFixed(2)}$, Max Loss: -${maxLoss.toFixed(2)}$</span>
-    <br/>
-    <span>Min Win: ${minWin.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$</span>
-    <br/>
-    <span>Avg Win: ${avgWin.toFixed(2)}$, Avg Loss: -${avgLoss.toFixed(2)}$</span>
-    <br/><br/>
-    <span>Total Trades: ${c_wins.length + c_loss.length}</span>
+    $('#income').innerHTML = html`
+        <details>${callStats}</details>
+        <br/>
+        <details>${putStats}</details>
     `;
 
-    // ordersClosure(puts_formula(pd_candles, smi_overbought, hanham_body),
-    //     transaction_cost,
-    //     'low',
-    //     (c, o, p) => c < o && p >= stop_limit,
-    //     (c, o, p) => c > o && p >= stop_loss,
-    //     (c, o, _) => c < o,
-    //     (t, i, p) => arrow(`Put Win (${i}) ${(p * 100).toFixed(2)}%}`, 'aboveBar', '#f09', 'arrowDown', t),
-    //     (t, i, p) => arrow(`Put Loss (${i}) -${(p * 100).toFixed(2)}%`, 'aboveBar', '#f02', 'arrowDown', t)
-    // );
-
-
-    // $('#income').innerHTML += `
-    // <br/>
-    // <span>Puts -> Wins: ${wins.length}, Losses: ${losses.length}, Winrate: ${winrate(w_puts, l_puts)}</span>
-    // `;
+    const resCall = applyWeights(xsCall, wsCall);
+    const resPut = applyWeights(xsPut, wsPut);
 
     bars(df);
     line(toLine(ta.sma[20] as number[]), 'SMA 20', 2, '#0A5');
-    markers(firstOf(calls_formula(res[0], res[1], res[2])), orderMarks);
+    markers(
+        firstOf(calls_formula(resCall[0], resCall[1], resCall[2])),
+        calls,
+        firstOf(puts_formula(resPut[0], resPut[1], resPut[2])),
+        puts
+    );
 }
