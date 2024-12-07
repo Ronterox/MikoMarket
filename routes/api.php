@@ -22,7 +22,7 @@ if (isset($_REQUEST['symbol'])) {
     $start_date = '2023-11-14';
     $end_date = '2024-02-16';
 
-    $multiplier = 1;
+    $multiplier = filter_input(INPUT_GET, 'multiplier', FILTER_VALIDATE_INT) ?? 1;
     $timespan = 'minute';
     $limit = 50000; # Max: 50000, aggregates is count * multiplier
 

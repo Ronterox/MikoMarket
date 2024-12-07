@@ -51,7 +51,7 @@ function view(string $filename, array $data = [], string $block = null)
         '/@require\s+[\'"](.+)[\'"]/' => '<?php require "routes/$1"; ?>', // @require 'file'
         '/@import\s+[\'"](.+)[\'"]/' => '<?php include "css/$1"; include "css/#$1"; include "css/_$1"; include "css/~$1";?>', // @import 'file'
         '/@block\s+.+?@endblock/s' => '', // @block ... @endblock
-        '/@foreach\s+(.+?)\s+in\s+(.+?)[\r\n]+(.+?)@endforeach/s' => '<?php foreach($2 as $1): extract($1); ?>$3<?php endforeach; ?>', // @foreach $var in $array ... @endforeach
+        '/@foreach\s+(.+?)\s+in\s+(.+?)[\r\n]+(.+?)@endforeach/s' => '<?php foreach($2 as $1): is_array($1) && extract($1); ?>$3<?php endforeach; ?>', // @foreach $var in $array ... @endforeach
         '/@if\s+(.+)/' => '<?php if($1): ?>', // @if $var
         '/@else/' => '<?php else: ?>', // @else
         '/@endif/' => '<?php endif; ?>', // @endif
