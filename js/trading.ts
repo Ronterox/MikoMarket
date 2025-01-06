@@ -68,59 +68,63 @@ export function loadChart(
     const smi_top = ta.ema(ta.ema(avg_top, 3, q), 3, q);
     const smi_bot = ta.ema(ta.ema(avg_bot, 3, q), 3, q);
 
-    const calls_formula = (pd_candles: number, smi_oversold: number, hanham_body: number) => (i: number) => {
-        const lastDay = getDayIdx(i, -1);
-        let can_pdh = close[i] <= pdh[lastDay];
+    function calls_formula(pd_candles: number, smi_oversold: number, hanham_body: number) {
+        return (i: number) => {
+            const lastDay = getDayIdx(i, -1);
+            let can_pdh = close[i] <= pdh[lastDay];
 
-        if (!can_pdh) {
-            can_pdh = close[max(0, i - pd_candles)] >= pdh[lastDay];
-        }
+            if (!can_pdh) {
+                can_pdh = close[max(0, min(i - pd_candles, i))] >= pdh[lastDay]; // Always True
+            }
 
-        const smi = smi_top[i] / (0.5 * smi_bot[i]);
-        const is_oversold = smi <= smi_oversold;
+            const smi = smi_top[i] / (0.5 * smi_bot[i]);
+            const is_oversold = smi <= smi_oversold; // Always True
 
-        const li = max(i - 1, 0);
-        const is_red = open[li] > close[li];
+            const li = max(i - 1, 0);
+            const is_red = open[li] > close[li];
 
-        const l_lower_tail = is_red ? close[li] - low[li] : open[li] - low[li];
-        const l_body = abs(open[li] - close[li]);
+            const l_lower_tail = is_red ? close[li] - low[li] : open[li] - low[li];
+            const l_body = abs(open[li] - close[li]);
 
-        const l_hammer = l_lower_tail >= l_body * hanham_body;
-        const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
+            const l_hammer = l_lower_tail >= l_body * hanham_body; // Always True
+            const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
 
-        const lower_bb = ta.sma[20][i] - 2 * ta.stddev[20][i];
-        const c_red = open[i] > close[i];
+            const lower_bb = ta.sma[20][i] - 2 * ta.stddev[20][i];
+            const c_red = open[i] > close[i];
 
-        const is_call = can_pdh && !c_red && is_oversold && low[i] < lower_bb && l_hammer && engulfing;
-        return is_call && arrow(`Call (${i})`, 'belowBar', '#0f0', 'arrowUp');
-    };
+            const is_call = can_pdh && !c_red && is_oversold && low[i] < lower_bb && l_hammer && engulfing;
+            return is_call && arrow(`Call (${i})`, 'belowBar', '#0f0', 'arrowUp');
+        };
+    }
 
-    const puts_formula = (pd_candles: number, smi_overbought: number, hanham_body: number) => (i: number) => {
-        const lastDay = getDayIdx(i, -1);
-        let can_pdl = close[i] >= pdl[lastDay];
+    function puts_formula(pd_candles: number, smi_overbought: number, hanham_body: number) {
+        return (i: number) => {
+            const lastDay = getDayIdx(i, -1);
+            let can_pdl = close[i] >= pdl[lastDay];
 
-        if (!can_pdl) {
-            can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
-        }
+            if (!can_pdl) {
+                can_pdl = close[max(0, i - pd_candles)] <= pdl[lastDay];
+            }
 
-        const smi = smi_top[i] / (0.5 * smi_bot[i]);
-        const is_overbought = smi >= smi_overbought
+            const smi = smi_top[i] / (0.5 * smi_bot[i]);
+            const is_overbought = smi >= smi_overbought;
 
-        const li = max(i - 1, 0);
-        const is_red = open[li] > close[li];
+            const li = max(i - 1, 0);
+            const is_red = open[li] > close[li];
 
-        const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
-        const l_body = abs(open[li] - close[li]);
+            const l_upper_tail = is_red ? high[li] - open[li] : high[li] - close[li];
+            const l_body = abs(open[li] - close[li]);
 
-        const l_hanger = l_upper_tail >= l_body * hanham_body;
-        const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
+            const l_hanger = l_upper_tail >= l_body * hanham_body;
+            const engulfing = abs(close[i] - open[i]) > abs(high[li] - low[li]);
 
-        const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
-        const c_red = open[i] > close[i];
+            const upper_bb = ta.sma[20][i] + 2 * ta.stddev[20][i];
+            const c_red = open[i] > close[i];
 
-        const is_put = can_pdl && c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing;
-        return is_put && arrow(`Put (${i})`, 'aboveBar', '#f00', 'arrowDown');
-    };
+            const is_put = can_pdl && c_red && is_overbought && high[i] > upper_bb && l_hanger && engulfing;
+            return is_put && arrow(`Put (${i})`, 'aboveBar', '#f00', 'arrowDown');
+        };
+    }
 
     const candles = zip<Candle>(df);
 
@@ -138,20 +142,21 @@ export function loadChart(
 
     function ordersSimulation(
         orders: Iter,
-        { budget, max_cost, src, length_limit, leverage }: {
-            budget: number, max_cost: number, src: z.infer<typeof Source>,
+        { budget, src, length_limit, leverage }: {
+            budget: number, src: z.infer<typeof Source>,
             length_limit: number, leverage: number
         },
         winCond: CloseCond,
         lossCond: CloseCond,
         exitWinCond: CloseCond,
         winArrow: (time: Time, i: number, p: number) => Mark,
-        lossArrow: (time: Time, i: number, p: number) => Mark
+        lossArrow: (time: Time, i: number, p: number) => Mark,
     ): [number, number[], number[], Mark[]] {
 
         const wins: number[] = [];
         const losses: number[] = [];
         const orderMarks = [] as Mark[];
+        const initialBudget = budget;
 
         firstOf(orders).forEach(data => {
             const idx = candles.findIndex(c => c.time === data.time);
@@ -159,10 +164,11 @@ export function loadChart(
 
             function checkWinLoss(time: Time, close: number, wcond: CloseCond, lcond: CloseCond): boolean {
                 if (budget <= 0) return true;
+                // TODO: Fix inconsistencies between close and high/low for calculating
 
                 const orderBuy = candles[idx].close;
                 const percentApprox = (abs(orderBuy - close) / orderBuy) * leverage / 0.5;
-                const transaction_cost = min(budget, max_cost);
+                const transaction_cost = budget * 0.2;
 
                 // 150% == 0.32
                 const percent = percentApprox / 0.3
@@ -170,15 +176,21 @@ export function loadChart(
 
                 if (wcond(close, orderBuy, percent)) {
                     const win = transaction_cost * percent - commission;
+
+                    if (should_print) console.log('Budget:', floor(budget), ', Won:', floor(win));
+
                     budget += win;
 
                     orderMarks.push(winArrow(time, idx, percent));
                     wins.push(win);
 
                     return true;
-                } else if (lcond(close, orderBuy, percent)) {
-                    const loss = min(transaction_cost * percent + commission, transaction_cost);
-                    budget -= loss;
+                } else if (lcond(close, orderBuy, percent) || percent >= 1) {
+                    const loss = transaction_cost * percent + commission;
+
+                    if (should_print) console.log('Budget:', floor(budget), ', Loss:', floor(loss));
+
+                    budget = max(0, budget - loss);
 
                     orderMarks.push(lossArrow(time, idx, percent));
                     losses.push(loss);
@@ -191,13 +203,14 @@ export function loadChart(
 
             let i;
             // Skip 1, don't the next one for security
-            for (i = idx + 2; i < min(idx + length_limit, candles.length - 1); i++) {
+            for (i = idx + 1; i < min(idx + length_limit, candles.length - 1); i++) {
                 if (checkWinLoss(candles[i].time, candles[i][src], winCond, lossCond)) return;
             }
             checkWinLoss(candles[i].time, candles[i][src], exitWinCond, () => true);
         });
 
-        return [budget, wins, losses, orderMarks];
+
+        return [max(0, budget - initialBudget), wins, losses, orderMarks];
     }
 
 
@@ -207,7 +220,7 @@ export function loadChart(
         const res = applyWeights(xs, ws);
 
         return ordersSimulation(calls_formula(res[0], res[1], res[2]),
-            { budget, max_cost, src: 'high', length_limit: res[5], leverage },
+            { budget, src: 'high', length_limit: res[5], leverage },
             (c, o, p) => c > o && p >= res[3],
             (c, o, p) => c < o && p >= res[4],
             (c, o, _) => c > o,
@@ -220,7 +233,7 @@ export function loadChart(
         const res = applyWeights(xs, ws);
 
         return ordersSimulation(puts_formula(res[0], res[1], res[2]),
-            { budget, max_cost, src: 'low', length_limit: res[5], leverage },
+            { budget, src: 'low', length_limit: res[5], leverage },
             (c, o, p) => c < o && p >= res[3],
             (c, o, p) => c > o && p >= res[4],
             (c, o, _) => c < o,
@@ -239,13 +252,13 @@ export function loadChart(
         const checkpoint = localStorage.getItem(checkpoint_name);
 
         let xs: number[] = Object.values(data).concat([1]); // Bias
-        let ws: number[] = checkpoint ? JSON.parse(checkpoint) : Array.from({ length: xs.length }).map(() => gaussianRandom());
+        let ws: number[] = checkpoint ? JSON.parse(checkpoint) : Array.from({ length: xs.length }, () => gaussianRandom())
 
         for (let i = 1; i <= epochs && train; i++) {
-            const [bestIncome] = simulationStep(xs, ws);
+            const [bestIncome, _bWs] = simulationStep(xs, ws);
 
             const cws = ws.map(w => w + gaussianRandom() * 1.0);
-            const [income] = simulationStep(xs, cws);
+            const [income, _Ws] = simulationStep(xs, cws);
 
             if (income > bestIncome) {
                 ws = cws;
@@ -268,16 +281,22 @@ export function loadChart(
     function getTrainingResults(
         name: string,
         data: Object,
+        train: boolean,
         simulationStep: (xs: number[], ws: number[]) => [number, number[], number[], Mark[]]): [string, number[], number[], Mark[]] {
-        const [xs, ws] = training(data, simulationStep, 500, false);
+        const [xs, ws] = training(data, simulationStep, 200, train);
+        // const ws = Array.from({ length: xs.length }, () => 1).concat([0]);
+
+        console.log(...Object.keys(data_call).map((d, i) => {
+            return { [d]: ws[i] * xs[i] + ws[ws.length - 1] };
+        }));
 
         const res = applyWeights(xs, ws);
         const [income, wins, loss, orderMarks] = simulationStep(xs, ws);
 
-        const [minWin, maxWin, avgWin] = stats(wins);
-        const [minLoss, maxLoss, avgLoss] = stats(loss);
+        const [_minWin, maxWin, avgWin] = stats(wins);
+        const [_minLoss, maxLoss, avgLoss] = stats(loss);
 
-        const statsHtml =  html`
+        const statsHtml = html`
         <summary>${name}</summary>
         <span>
             Budget: ${budget}$,
@@ -292,8 +311,6 @@ export function loadChart(
         <br/><br/>
         <span>Max Win: ${maxWin.toFixed(2)}$, Max Loss: -${maxLoss.toFixed(2)}$</span>
         <br/>
-        <span>Min Win: ${minWin.toFixed(2)}$, Min Loss: -${minLoss.toFixed(2)}$</span>
-        <br/>
         <span>Avg Win: ${avgWin.toFixed(2)}$, Avg Loss: -${avgLoss.toFixed(2)}$</span>
         <br/><br/>
         <span>Total Trades: ${wins.length + loss.length}</span>
@@ -303,8 +320,7 @@ export function loadChart(
     }
 
     const leverage = 50;
-    const budget = 1000;
-    const max_cost = 1000;
+    const budget = 5000;
 
     const data_call = {
         pd_candles: 60,
@@ -328,8 +344,10 @@ export function loadChart(
         length: 20,
     };
 
-    const [callStats, xsCall, wsCall, calls] = getTrainingResults('Calls', data_call, simulationStepCall);
-    const [putStats, xsPut, wsPut, puts] = getTrainingResults('Puts', data_put, simulationStepPut);
+    const should_print = true;
+
+    const [callStats, xsCall, wsCall, calls] = getTrainingResults('Calls', data_call, false, simulationStepCall);
+    const [putStats, xsPut, wsPut, puts] = getTrainingResults('Puts', data_put, false, simulationStepPut);
 
     $('#income').innerHTML = html`
         <details>${callStats}</details>
