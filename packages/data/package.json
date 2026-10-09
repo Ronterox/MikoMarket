@@ -1,0 +1,10 @@
+{
+  "name": "@miko/data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Market data for MikoMarket: TradeStation client, CSV import, cache, resampling, instruments, profile files. Bun/Node only.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "bun test" },
+  "dependencies": { "@miko/engine": "workspace:*" }
+}
