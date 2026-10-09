@@ -1,0 +1,9 @@
+{
+  "name": "@miko/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MikoMarket HTTP API (bars, live SSE stream, profiles) and static host for the web app.",
+  "scripts": { "dev": "bun --watch src/main.ts", "start": "bun src/main.ts", "test": "bun test" },
+  "dependencies": { "@miko/engine": "workspace:*", "@miko/data": "workspace:*" }
+}
