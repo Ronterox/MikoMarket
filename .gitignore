@@ -606,3 +606,18 @@ composer.lock
 *.scss.map
 
 config.php
+
+# MikoMarket
+data/cache/
+data/profiles/
+data/import/
+apps/web/dist/
+*.tsbuildinfo
+.omc/
+legacy/vendor/
+legacy/cache/
+legacy/config
+legacy/config.php
+legacy/composer.lock
+.playwright-mcp/
+apps/web/screenshots/
