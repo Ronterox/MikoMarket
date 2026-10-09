@@ -9,6 +9,7 @@ import { sound } from '../lib/sound.ts';
 import { fx } from '../lib/fx.ts';
 import { signedMoney } from '../lib/format.ts';
 import { lsGet, lsSet } from '../lib/storage.ts';
+import { token } from '../lib/theme.ts';
 import { coach, todayLocal, useApp, type ResultsData } from './app.ts';
 
 export type Speed = 0 | 1 | 2 | 3;
@@ -88,12 +89,12 @@ function juiceFor(trade: Trade, awards: XpAward[]) {
   if (trade.pnl > 0) {
     sound.play('win', 1 + Math.min(1, (trade.r ?? 1) / 3));
     fx.burst(x, y, 'win', trade.r && trade.r >= 2 ? 40 : 26);
-    fx.float(`${signedMoney(trade.pnl)}`, x, y - 10, '#3dffc2', 34);
-    setTimeout(() => fx.float(`+${xp} XP`, x, y + 26, '#ffd23f', 22), 260);
+    fx.float(`${signedMoney(trade.pnl)}`, x, y - 10, token('--up'), 34);
+    setTimeout(() => fx.float(`+${xp} XP`, x, y + 26, token('--brand-2'), 22), 260);
   } else {
     sound.play('loss');
     fx.burst(x, y, 'lesson', 12);
-    fx.float(`📘 Lesson +${xp} XP`, x, y, '#8fc1ff', 24);
+    fx.float(`📘 Lesson +${xp} XP`, x, y, token('--info'), 24);
   }
 }
 
@@ -118,7 +119,7 @@ export const usePlay = create<PlayState>((set, get) => {
       } else if (e.type === 'positionOpened' && e.position.actor === 'manual') {
         sound.play(e.position.side === 'long' ? 'buy' : 'sell');
         const { x, y } = fx.centerOf(document.querySelector('[data-fx="chart"]'));
-        fx.float(e.position.side === 'long' ? '▲ LONG' : '▼ SHORT', x, y, e.position.side === 'long' ? '#3dffc2' : '#ff8a5c', 28);
+        fx.float(e.position.side === 'long' ? '▲ LONG' : '▼ SHORT', x, y, e.position.side === 'long' ? token('--up') : token('--down'), 28);
         set((s) => ({ tradeContext: [...s.tradeContext, { riskPct: pendingRiskPct, followedPlan: true }] }));
       } else if (e.type === 'tradeClosed' && e.trade.actor === 'manual') {
         const t = e.trade;

@@ -12,6 +12,7 @@ import { usePlay } from './play.ts';
 import { sound } from '../lib/sound.ts';
 import { fx } from '../lib/fx.ts';
 import { lsGet, lsSet } from '../lib/storage.ts';
+import { token } from '../lib/theme.ts';
 
 /**
  * Builder model. The UI edits "cards" (long-form conditions with relative genes);
@@ -187,7 +188,7 @@ function lazySeries() {
 
 function celebrateXp(xp: number) {
   const { x, y } = fx.centerOf(document.querySelector('[data-fx="lab-actions"]'));
-  fx.float(`+${xp} XP`, x, y - 30, '#ffd23f', 26);
+  fx.float(`+${xp} XP`, x, y - 30, token('--brand-2'), 26);
   fx.burst(x, y - 20, 'spark', 16);
 }
 

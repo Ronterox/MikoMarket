@@ -19,7 +19,10 @@ interface FloatText {
   life: number; max: number; color: string; size: number;
 }
 
-const CONFETTI = ['#ff5fa2', '#9b5cff', '#3ee0ff', '#ffd23f', '#22d3a6', '#ffffff'];
+import { token } from './theme.ts';
+
+/** Confetti follows the theme tokens (sakura, peach, sky, mint, a touch of gold, cream). */
+const confettiColors = () => [token('--brand'), token('--brand-2'), token('--info'), token('--up'), token('--gold'), token('--star')];
 
 class FxEngine {
   private canvas: HTMLCanvasElement | null = null;
@@ -64,6 +67,9 @@ class FxEngine {
   /** Coin + sparkle fountain, e.g. on a winning trade. */
   burst(x: number, y: number, kind: 'win' | 'spark' | 'lesson' = 'win', count = 26): void {
     if (this.reduced) return;
+    const palette = confettiColors();
+    const lesson = token('--info');
+    const coin = token('--gold');
     for (let i = 0; i < count; i++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.3;
       const sp = 3 + Math.random() * 6;
@@ -74,7 +80,7 @@ class FxEngine {
         life: 0, max: 55 + Math.random() * 35,
         size: isCoin ? 7 + Math.random() * 4 : 3 + Math.random() * 3,
         rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
-        color: kind === 'lesson' ? '#7fb2ff' : isCoin ? '#ffd23f' : CONFETTI[i % CONFETTI.length]!,
+        color: kind === 'lesson' ? lesson : isCoin ? coin : palette[i % palette.length]!,
       });
     }
     this.kick();
@@ -83,6 +89,7 @@ class FxEngine {
   confetti(count = 140): void {
     if (this.reduced) return;
     const w = window.innerWidth;
+    const palette = confettiColors();
     for (let i = 0; i < count; i++) {
       this.parts.push({
         kind: 'confetti',
@@ -90,18 +97,18 @@ class FxEngine {
         vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3,
         life: 0, max: 160 + Math.random() * 80,
         size: 5 + Math.random() * 5, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3,
-        color: CONFETTI[i % CONFETTI.length]!,
+        color: palette[i % palette.length]!,
       });
     }
     this.kick();
   }
 
-  float(text: string, x: number, y: number, color = '#ffd23f', size = 26): void {
+  float(text: string, x: number, y: number, color = token('--brand-2'), size = 26): void {
     this.floats.push({ text, x, y, vy: this.reduced ? 0 : -1.1, life: 0, max: this.reduced ? 70 : 85, color, size });
     this.kick();
   }
 
-  flash(color = 'rgba(255,255,255,0.75)'): void {
+  flash(color = 'rgba(255, 246, 236, 0.75)'): void {
     const el = this.flashEl;
     if (!el || this.reduced) return;
     el.style.background = color;
@@ -139,11 +146,11 @@ class FxEngine {
       if (p.kind === 'coin') {
         const squash = Math.abs(Math.cos(p.life / 5));
         ctx.scale(Math.max(0.2, squash), 1);
-        ctx.fillStyle = '#ffb703';
+        ctx.fillStyle = '#e8a63c';
         ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(0, 0, p.size * 0.72, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#b07400';
+        ctx.fillStyle = '#8a5a12';
         ctx.font = `900 ${p.size * 1.1}px Nunito, sans-serif`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('$', 0, 1);
@@ -174,7 +181,7 @@ class FxEngine {
       ctx.scale(pop, pop);
       ctx.font = `900 ${f.size}px "Baloo 2", Nunito, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(13,11,38,0.85)'; ctx.lineJoin = 'round';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(23, 20, 18, 0.85)'; ctx.lineJoin = 'round';
       ctx.strokeText(f.text, 0, 0);
       ctx.fillStyle = f.color;
       ctx.fillText(f.text, 0, 0);

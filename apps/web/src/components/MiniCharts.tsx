@@ -21,8 +21,8 @@ export function Sparkline({ values, height = 60, animate = true }: { values: num
     <svg className="sparkline" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" width="100%" height={height}>
       <defs>
         <linearGradient id={`sg${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={up ? '#22d3a6' : '#ff6a3d'} stopOpacity="0.35" />
-          <stop offset="1" stopColor={up ? '#22d3a6' : '#ff6a3d'} stopOpacity="0" />
+          <stop offset="0" style={{ stopColor: up ? 'var(--up)' : 'var(--down)', stopOpacity: 0.3 }} />
+          <stop offset="1" style={{ stopColor: up ? 'var(--up)' : 'var(--down)', stopOpacity: 0 }} />
         </linearGradient>
       </defs>
       <path d={`${d}L${w - 4},${height}L4,${height}Z`} fill={`url(#sg${id})`} />
@@ -61,13 +61,12 @@ export function EquityCurve({ values, base, height = 120 }: { values: number[]; 
     <svg className="equity-curve" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" width="100%" height={height}>
       <defs>
         <linearGradient id={`eq${id}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#ff5fa2" />
-          <stop offset="0.55" stopColor="#9b5cff" />
-          <stop offset="1" stopColor="#3ee0ff" />
+          <stop offset="0" style={{ stopColor: 'var(--brand)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--brand-2)' }} />
         </linearGradient>
         <linearGradient id={`eqf${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#9b5cff" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#9b5cff" stopOpacity="0" />
+          <stop offset="0" style={{ stopColor: 'var(--brand)', stopOpacity: 0.28 }} />
+          <stop offset="1" style={{ stopColor: 'var(--brand-2)', stopOpacity: 0 }} />
         </linearGradient>
       </defs>
       <line x1="0" x2={w} y1={by} y2={by} stroke="var(--line-strong)" strokeDasharray="4 4" />
@@ -89,12 +88,12 @@ export function FitnessChart({ best, mean, total, height = 110 }: { best: number
   return (
     <svg className="fitness-chart" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" width="100%" height={height}>
       {Array.from({ length: total }, (_, i) => (
-        <rect key={i} x={6 + (i / Math.max(1, total - 1)) * (w - 12) - 1} y={height - 4} width="2" height="3" fill={i <= lastI ? 'var(--cyan)' : 'var(--line-strong)'} />
+        <rect key={i} x={6 + (i / Math.max(1, total - 1)) * (w - 12) - 1} y={height - 4} width="2" height="3" fill={i <= lastI ? 'var(--brand-2)' : 'var(--line-strong)'} />
       ))}
       <path d={pts(mean)} fill="none" stroke="var(--muted)" strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-      <path d={pts(best)} fill="none" stroke="var(--pink)" strokeWidth="3" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path d={pts(best)} fill="none" stroke="var(--brand)" strokeWidth="3" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       {lastI >= 0 && Number.isFinite(best[lastI]!) && (
-        <circle cx={6 + (lastI / Math.max(1, total - 1)) * (w - 12)} cy={height - 6 - ((best[lastI]! - lo) / span) * (height - 12)} r="5" fill="var(--pink)" className="pulse-dot" />
+        <circle cx={6 + (lastI / Math.max(1, total - 1)) * (w - 12)} cy={height - 6 - ((best[lastI]! - lo) / span) * (height - 12)} r="5" fill="var(--brand)" className="pulse-dot" />
       )}
     </svg>
   );
@@ -121,10 +120,10 @@ export function FanChart({ curves, base, height = 140 }: { curves: number[][]; b
       <line x1="0" x2={w} y1={by} y2={by} stroke="var(--line-strong)" strokeDasharray="4 4" />
       {usable.map((c, k) => (
         <path key={k} d={c.map((v, i) => `${i === 0 ? 'M' : 'L'}${xy(i, v)}`).join('')} fill="none"
-          stroke={c[c.length - 1]! >= base ? 'var(--cyan)' : 'var(--down)'} strokeOpacity="0.28" strokeWidth="1.2"
+          stroke={c[c.length - 1]! >= base ? 'var(--info)' : 'var(--down)'} strokeOpacity="0.3" strokeWidth="1.2"
           vectorEffect="non-scaling-stroke" className="fan-line" style={{ animationDelay: `${k * 40}ms` }} />
       ))}
-      <path d={median.map((v, i) => `${i === 0 ? 'M' : 'L'}${xy(i, v)}`).join('')} fill="none" stroke="var(--pink)" strokeWidth="3" vectorEffect="non-scaling-stroke" pathLength={1} className="draw-line slow" />
+      <path d={median.map((v, i) => `${i === 0 ? 'M' : 'L'}${xy(i, v)}`).join('')} fill="none" stroke="var(--brand)" strokeWidth="3" vectorEffect="non-scaling-stroke" pathLength={1} className="draw-line slow" />
     </svg>
   );
 }

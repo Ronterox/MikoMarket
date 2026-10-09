@@ -1,4 +1,5 @@
-import { levelProgress, rankFor, sumXp } from '@miko/engine';
+import { levelProgress, sumXp } from '@miko/engine';
+import { uiRank as rankFor } from '../lib/ranks.ts';
 import { AnimatedNumber } from './AnimatedNumber.tsx';
 import { LevelRing } from './LevelRing.tsx';
 import { arrow, money, signedMoney } from '../lib/format.ts';

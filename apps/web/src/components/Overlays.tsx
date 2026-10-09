@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { levelProgress, rankFor } from '@miko/engine';
+import { levelProgress } from '@miko/engine';
+import { uiRank as rankFor } from '../lib/ranks.ts';
 import { useApp, type ResultsData } from '../state/app.ts';
 import { usePlay } from '../state/play.ts';
 import { MikoAvatar } from '../miko/MikoAvatar.tsx';
@@ -25,7 +26,7 @@ function LevelUp({ level }: { level: number }) {
   const newRank = rank.title !== prevRank.title;
   useEffect(() => {
     sound.play('levelUp');
-    fx.flash('rgba(255,255,255,0.85)');
+    fx.flash('rgba(255, 246, 236, 0.85)');
     setTimeout(() => fx.confetti(160), 150);
   }, []);
   const next = () => {

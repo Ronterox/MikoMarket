@@ -7,17 +7,15 @@ import {
 import { computeIndicator, listIndicators, type Bar, type IndicatorMeta, type Session, type Trade } from '@miko/engine';
 import { priceFmt, signedMoney } from '../../lib/format.ts';
 import { useApp } from '../../state/app.ts';
+import { slotColors, token } from '../../lib/theme.ts';
 
 const HISTORY = 160;
 /** Outputs that are not price levels (never drawn on the price pane). */
 const NON_PRICE = new Set(['percentB', 'bandwidth', 'slope', 'dir']);
-export const SLOT_COLORS = [['#3ee0ff', '#8ff0ff'], ['#ffd23f', '#ffe68a']] as const;
 
 const ts = (t: number) => (t / 1000) as UTCTimestamp;
 
-function cssVar(name: string, fallback: string): string {
-  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch { return fallback; }
-}
+const cssVar = (name: string) => token(name);
 
 function toCandle(b: Bar) { return { time: ts(b.t), open: b.o, high: b.h, low: b.l, close: b.c }; }
 
@@ -63,17 +61,17 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     const el = wrap.current!;
     const chart = createChart(el, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: cssVar('--chart-text', '#9d97d0'), fontFamily: 'Nunito, sans-serif', fontSize: 11, attributionLogo: true },
-      grid: { vertLines: { color: cssVar('--chart-grid', 'rgba(176,164,255,0.07)') }, horzLines: { color: cssVar('--chart-grid', 'rgba(176,164,255,0.07)') } },
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: cssVar('--chart-text'), fontFamily: 'Nunito, sans-serif', fontSize: 11, attributionLogo: true },
+      grid: { vertLines: { color: cssVar('--chart-grid') }, horzLines: { color: cssVar('--chart-grid') } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: { borderVisible: false, rightOffset: 8, barSpacing: 8, minBarSpacing: 2, fixLeftEdge: false },
-      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelVisible: false }, horzLine: { labelBackgroundColor: '#9b5cff' } },
+      crosshair: { mode: CrosshairMode.Normal, vertLine: { labelVisible: false }, horzLine: { labelBackgroundColor: cssVar('--chart-cross') } },
       handleScale: { axisPressedMouseMove: { time: true, price: false } },
     });
     const candle = chart.addSeries(CandlestickSeries, {
-      upColor: cssVar('--up', '#22d3a6'), downColor: cssVar('--down', '#ff6a3d'),
-      wickUpColor: cssVar('--up', '#22d3a6'), wickDownColor: cssVar('--down', '#ff6a3d'), borderVisible: false,
-      priceLineColor: '#9b5cff', priceLineStyle: LineStyle.Dotted,
+      upColor: cssVar('--up'), downColor: cssVar('--down'),
+      wickUpColor: cssVar('--wick-up'), wickDownColor: cssVar('--wick-down'), borderVisible: false,
+      priceLineColor: cssVar('--brand-2'), priceLineStyle: LineStyle.Dotted,
     });
     chartRef.current = chart;
     candleRef.current = candle;
@@ -92,10 +90,16 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   useEffect(() => {
     const chart = chartRef.current, candle = candleRef.current;
     if (!chart || !candle) return;
-    const grid = cssVar('--chart-grid', 'rgba(176,164,255,0.07)');
-    chart.applyOptions({ layout: { textColor: cssVar('--chart-text', '#9d97d0') }, grid: { vertLines: { color: grid }, horzLines: { color: grid } } });
-    const up = cssVar('--up', '#22d3a6'), down = cssVar('--down', '#ff6a3d');
-    candle.applyOptions({ upColor: up, downColor: down, wickUpColor: up, wickDownColor: down });
+    const grid = cssVar('--chart-grid');
+    chart.applyOptions({
+      layout: { textColor: cssVar('--chart-text') },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+      crosshair: { horzLine: { labelBackgroundColor: cssVar('--chart-cross') } },
+    });
+    candle.applyOptions({
+      upColor: cssVar('--up'), downColor: cssVar('--down'), wickUpColor: cssVar('--wick-up'), wickDownColor: cssVar('--wick-down'),
+      priceLineColor: cssVar('--brand-2'),
+    });
   }, [theme]);
 
   // ── mystery mode hides dates ──
@@ -166,7 +170,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       try { data = computeIndicator(session.cols, id); } catch { return; }
       const paneIndex = meta.overlay ? 0 : pane++;
       const keys = meta.outputs.map((o) => o.key).filter((k) => data[k] && (!meta.overlay || !NON_PRICE.has(k)));
-      const [c1, c2] = SLOT_COLORS[slot % 2]!;
+      const [c1, c2] = slotColors(slot);
       const series = keys.map((key, k) => {
         const s = chart.addSeries(LineSeries, {
           color: k === 0 ? c1 : c2,
@@ -176,7 +180,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
           pointMarkersVisible: id === 'psar',
           lineVisible: id !== 'psar',
         }, paneIndex);
-        if (k === 0 && !meta.overlay) for (const lv of meta.levels ?? []) s.createPriceLine({ price: lv, color: 'rgba(170,164,220,0.45)', lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: '' });
+        if (k === 0 && !meta.overlay) for (const lv of meta.levels ?? []) s.createPriceLine({ price: lv, color: cssVar('--ind-level'), lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: '' });
         return { key, s };
       });
       const layer = { id, meta, data, series };
@@ -188,7 +192,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     panes[0]?.setStretchFactor(panes.length > 1 ? 3.2 : 1);
     for (let p = 1; p < panes.length; p++) panes[p]!.setStretchFactor(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators, session, metas]);
+  }, [indicators, session, metas, theme]);
 
   // ── incremental updates per step ──
   useEffect(() => {
@@ -218,18 +222,18 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
 
     // markers
     const markers: SeriesMarker<Time>[] = [];
-    const up = cssVar('--up', '#22d3a6'), down = cssVar('--down', '#ff6a3d');
+    const up = cssVar('--up'), down = cssVar('--down'), botC = cssVar('--bot'), lesson = cssVar('--info');
     const addTrade = (t: Trade, bot: boolean) => {
       const long = t.side === 'long';
-      markers.push({ time: ts(t.entryT), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: bot ? '#b48cff' : long ? up : down, text: bot ? '🤖' : long ? 'BUY' : 'SELL', size: bot ? 1 : 1.4 });
-      markers.push({ time: ts(t.exitT), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: bot ? '#b48cff' : t.pnl >= 0 ? up : '#7fb2ff', text: bot ? '' : signedMoney(t.pnl), size: bot ? 0.6 : 1 });
+      markers.push({ time: ts(t.entryT), position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: bot ? botC : long ? up : down, text: bot ? '🤖' : long ? 'BUY' : 'SELL', size: bot ? 1 : 1.4 });
+      markers.push({ time: ts(t.exitT), position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: bot ? botC : t.pnl >= 0 ? up : lesson, text: bot ? '' : signedMoney(t.pnl), size: bot ? 0.6 : 1 });
     };
     for (const t of s.trades) addTrade(t, false);
     if (botSession) for (const t of botSession.trades) addTrade(t, true);
     const pos = s.state.position;
     if (pos) markers.push({ time: ts(pos.openedAt), position: pos.side === 'long' ? 'belowBar' : 'aboveBar', shape: pos.side === 'long' ? 'arrowUp' : 'arrowDown', color: pos.side === 'long' ? up : down, text: pos.side === 'long' ? 'BUY' : 'SELL', size: 1.4 });
     const bpos = botSession?.state.position;
-    if (bpos) markers.push({ time: ts(bpos.openedAt), position: bpos.side === 'long' ? 'belowBar' : 'aboveBar', shape: bpos.side === 'long' ? 'arrowUp' : 'arrowDown', color: '#b48cff', text: '🤖', size: 1 });
+    if (bpos) markers.push({ time: ts(bpos.openedAt), position: bpos.side === 'long' ? 'belowBar' : 'aboveBar', shape: bpos.side === 'long' ? 'arrowUp' : 'arrowDown', color: botC, text: '🤖', size: 1 });
     const minT = bars[fromIdx.current]!.t;
     markersRef.current?.setMarkers(markers.filter((m) => (m.time as number) * 1000 >= minT).sort((a, b) => (a.time as number) - (b.time as number)));
 
@@ -242,12 +246,12 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       }
       if (drag.current && key === drag.current.kind) return;
       if (!L[key]) L[key] = candle.createPriceLine({ price, color, lineWidth: key === 'entry' ? 1 : 2, lineStyle: style, axisLabelVisible: true, title });
-      else L[key]!.applyOptions({ price, title });
+      else L[key]!.applyOptions({ price, title, color });
     };
-    sync('entry', pos?.avgPrice, 'rgba(200,196,255,0.7)', '', LineStyle.Dotted);
+    sync('entry', pos?.avgPrice, cssVar('--chart-text'), '', LineStyle.Dotted);
     sync('stop', pos?.trailStop ?? pos?.stopLoss, down, '', LineStyle.Dashed);
     sync('target', pos?.takeProfit, up, '', LineStyle.Dashed);
-  }, [version, session, botSession]);
+  }, [version, session, botSession, theme]);
 
   // ── forming candle animation (visual only: the engine never sees it) ──
   useEffect(() => {

@@ -1,42 +1,64 @@
 /* ───────────── Design tokens ─────────────
-   Night-sky arcade: deep indigo base, candy gradient accent (pink → violet → cyan),
-   teal/orange for up/down (colour-blind friendly, always paired with ▲▼). */
+   Miko's world: a cozy anime café at night ("lofi night") and washi paper by day.
+   Brand = sakura → peach. Warm neutrals, never pure black, no cool neon.
+   Gains mint-green, losses soft coral-orange (colour-blind-safe pair, always with ▲▼).
+   Gold is reserved for tiny coin / star sparkles. */
 :root,
 :root[data-theme='dark'] {
-  --bg: #0b0a24;
-  --bg-2: #161241;
-  --bg-glow: #2a1a6e;
-  --surface: rgba(34, 28, 92, 0.72);
-  --surface-solid: #1c1850;
-  --surface-2: #29226a;
-  --surface-3: #352c86;
-  --line: rgba(176, 164, 255, 0.16);
-  --line-strong: rgba(176, 164, 255, 0.32);
-  --text: #f5f2ff;
-  --muted: #aaa4dc;
-  --faint: #716aad;
-  --shadow: 0 10px 30px rgba(5, 3, 25, 0.55);
-  --shadow-sm: 0 4px 14px rgba(5, 3, 25, 0.45);
+  --bg: #171412;
+  --bg-2: #1f1a17;
+  --bg-glow: rgba(255, 140, 120, 0.13);
+  --bg-glow-2: rgba(255, 111, 165, 0.08);
+  --bg-glow-3: rgba(63, 184, 245, 0.05);
+  --surface: rgba(42, 36, 32, 0.78);
+  --surface-solid: #2a2420;
+  --surface-2: #342c27;
+  --surface-3: #3f3530;
+  --line: rgba(255, 228, 200, 0.10);
+  --line-strong: rgba(255, 228, 200, 0.20);
+  --text: #fff6ec;
+  --muted: #cdbba8;
+  --faint: #8e7c6c;
+  --shadow: 0 10px 30px rgba(10, 6, 3, 0.5);
+  --shadow-sm: 0 4px 14px rgba(10, 6, 3, 0.4);
+  --scrim: rgba(12, 8, 5, 0.6);
 
-  --pink: #ff5fa2;
-  --violet: #9b5cff;
-  --cyan: #3ee0ff;
-  --gold: #ffd23f;
-  --up: #22d3a6;
-  --up-ink: #052e25;
-  --down: #ff6a3d;
-  --down-ink: #3a1003;
-  --lesson: #7fb2ff;
-  --neutral-btn: #e9e6ff;
+  --brand: #ff6fa5;      /* sakura: Miko's hair, primary */
+  --brand-2: #ff9a76;    /* peach */
+  --brand-ink: #3a1222;  /* text on brand surfaces when small */
+  --info: #3fb8f5;       /* sky: info, lesson, links */
+  --gold: #ffc857;       /* sparkles only */
+  --up: #2fd38a;
+  --up-ink: #06281a;
+  --down: #ff8551;
+  --down-ink: #3a1706;
+  --lesson: var(--info);
+  --mint: #6fdcb0;
+  --sand: #d9b98c;
+  --stone: #a8968a;
+  --star: #fff1de;
 
-  --grad: linear-gradient(135deg, #ff5fa2 0%, #9b5cff 55%, #3ee0ff 100%);
-  --grad-soft: linear-gradient(135deg, rgba(255, 95, 162, 0.22), rgba(155, 92, 255, 0.22) 55%, rgba(62, 224, 255, 0.22));
-  --grad-up: linear-gradient(180deg, #3cf0c0, #14b48c);
-  --grad-down: linear-gradient(180deg, #ff8a5c, #e2491d);
+  --grad: linear-gradient(135deg, #ff6fa5 0%, #ff9a76 100%);
+  --grad-soft: linear-gradient(135deg, rgba(255, 111, 165, 0.18), rgba(255, 154, 118, 0.16));
+  --grad-up: linear-gradient(180deg, #4fe3a2, #22b874);
+  --grad-down: linear-gradient(180deg, #ffa077, #f26e3a);
+  --grad-info: linear-gradient(180deg, #62c8f8, #2a9fe0);
+  --close-bg: linear-gradient(180deg, #fff6ec, #ead9c6);
+  --close-ink: #3a2c22;
+  --glow-brand: rgba(255, 111, 165, 0.28);
+  --glow-up: rgba(47, 211, 138, 0.22);
 
-  --chart-bg: transparent;
-  --chart-grid: rgba(176, 164, 255, 0.07);
-  --chart-text: #9d97d0;
+  --chart-grid: rgba(255, 228, 200, 0.055);
+  --chart-text: #b5a291;
+  --chart-cross: #ff9a76;
+  --wick-up: rgba(47, 211, 138, 0.7);
+  --wick-down: rgba(255, 133, 81, 0.7);
+  --ind-1: #3fb8f5;
+  --ind-1b: #93d6fa;
+  --ind-2: #ff8fb8;
+  --ind-2b: #ffc4da;
+  --ind-level: rgba(205, 187, 168, 0.4);
+  --bot: #8fc9e8;
 
   --radius: 20px;
   --radius-sm: 14px;
@@ -49,27 +71,42 @@
 }
 
 :root[data-theme='light'] {
-  --bg: #f1edff;
-  --bg-2: #e4dcff;
-  --bg-glow: #ffd6ec;
-  --surface: rgba(255, 255, 255, 0.82);
+  --bg: #fff8ef;
+  --bg-2: #fdefe0;
+  --bg-glow: rgba(255, 154, 118, 0.20);
+  --bg-glow-2: rgba(255, 111, 165, 0.12);
+  --bg-glow-3: rgba(30, 143, 208, 0.06);
+  --surface: rgba(255, 255, 255, 0.9);
   --surface-solid: #ffffff;
-  --surface-2: #f3efff;
-  --surface-3: #e7e0ff;
-  --line: rgba(86, 64, 190, 0.14);
-  --line-strong: rgba(86, 64, 190, 0.28);
-  --text: #1d1748;
-  --muted: #5f5896;
-  --faint: #9a93c8;
-  --shadow: 0 10px 30px rgba(70, 50, 160, 0.16);
-  --shadow-sm: 0 4px 14px rgba(70, 50, 160, 0.12);
-  --up: #0ea882;
+  --surface-2: #fff3e6;
+  --surface-3: #fbe6d3;
+  --line: rgba(90, 60, 30, 0.12);
+  --line-strong: rgba(90, 60, 30, 0.24);
+  --text: #2b211a;
+  --muted: #7a6656;
+  --faint: #b39d8a;
+  --shadow: 0 10px 30px rgba(120, 70, 30, 0.12);
+  --shadow-sm: 0 4px 14px rgba(120, 70, 30, 0.10);
+  --scrim: rgba(60, 40, 25, 0.35);
+  --info: #1e8fd0;
+  --up: #129e62;
   --up-ink: #ffffff;
-  --down: #e5532a;
+  --down: #e0622a;
   --down-ink: #ffffff;
-  --lesson: #3f7fe0;
-  --neutral-btn: #2b2466;
-  --chart-grid: rgba(86, 64, 190, 0.07);
-  --chart-text: #6d66a3;
+  --star: #ff9a76;
+  --close-bg: linear-gradient(180deg, #4a3a2e, #2b211a);
+  --close-ink: #fff6ec;
+  --glow-brand: rgba(255, 111, 165, 0.22);
+  --glow-up: rgba(18, 158, 98, 0.16);
+  --chart-grid: rgba(90, 60, 30, 0.06);
+  --chart-text: #8a7564;
+  --wick-up: rgba(18, 158, 98, 0.7);
+  --wick-down: rgba(224, 98, 42, 0.7);
+  --ind-1: #1e8fd0;
+  --ind-1b: #7cc2ea;
+  --ind-2: #d94f87;
+  --ind-2b: #eda0c0;
+  --ind-level: rgba(122, 102, 86, 0.4);
+  --bot: #4a90b8;
   color-scheme: light;
 }

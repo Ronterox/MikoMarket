@@ -3,7 +3,7 @@ import type { Mood } from '@miko/engine';
 
 /**
  * Miko — original chibi trading assistant, drawn as inline SVG.
- * Big eyes, pink→violet twin-tails, and a hair clip made of two tiny
+ * Big eyes, sakura→peach twin-tails, and a hair clip made of two tiny
  * candlesticks (one up-candle, one down-candle). Each Mood swaps eyes,
  * mouth, arms and a small prop. Idle bob / blink / tail sway are CSS.
  */
@@ -23,7 +23,7 @@ const MOODS: Record<Mood, { eyes: EyeKind; mouth: MouthKind; arms: Arms; brows: 
   sleepy: { eyes: 'sleep', mouth: 'o', arms: 'down', brows: 'none', blush: 0.3 },
 };
 
-const INK = '#2a1840';
+const INK = '#3a2028';
 
 function Eye({ kind, cx, cy, irisId, flip }: { kind: EyeKind; cx: number; cy: number; irisId: string; flip?: boolean }) {
   if (kind === 'happy') {
@@ -38,7 +38,7 @@ function Eye({ kind, cx, cy, irisId, flip }: { kind: EyeKind; cx: number; cy: nu
     <g className="miko-eye" style={{ transformOrigin: `${cx}px ${cy}px` }}>
       <ellipse cx={cx} cy={cy} rx="7.4" ry="8.8" fill="#fff" />
       <ellipse cx={cx + dx} cy={cy + dy} rx="6" ry="7.6" fill={`url(#${irisId})`} />
-      <ellipse cx={cx + dx} cy={cy + dy + 0.6} rx="2.7" ry="3.6" fill="#1b0f3a" />
+      <ellipse cx={cx + dx} cy={cy + dy + 0.6} rx="2.7" ry="3.6" fill="#3a1424" />
       {kind === 'star' ? (
         <>
           <path d={star(cx + dx - 1.6, cy + dy - 2.4, 3.2)} fill="#fff" />
@@ -111,8 +111,8 @@ function ArmsLayer({ arms, skin, sleeve }: { arms: Arms; skin: string; sleeve: s
         <>
           {arm('M45,99 Q34,90 27,78', 26, 75, 'l')}
           {arm('M75,99 Q86,90 93,78', 94, 75, 'r')}
-          <path className="miko-pom" d={star(24, 70, 8)} fill="#ffd23f" stroke="#ff9f1c" strokeWidth="1" />
-          <path className="miko-pom" d={star(96, 70, 8)} fill="#ffd23f" stroke="#ff9f1c" strokeWidth="1" />
+          <path className="miko-pom" d={star(24, 70, 8)} fill="#ffc857" stroke="#f0a04b" strokeWidth="1" />
+          <path className="miko-pom" d={star(96, 70, 8)} fill="#ffc857" stroke="#f0a04b" strokeWidth="1" />
         </>
       );
     case 'fists':
@@ -126,7 +126,7 @@ function ArmsLayer({ arms, skin, sleeve }: { arms: Arms; skin: string; sleeve: s
         <>
           {arm('M45,99 Q40,108 39,117', 39, 119, 'l')}
           <line x1="96" y1="90" x2="112" y2="66" stroke="#8a5a2b" strokeWidth="2.4" strokeLinecap="round" />
-          <path d={star(112.5, 64, 4.5)} fill="#ffd23f" stroke="#ff9f1c" strokeWidth="0.8" />
+          <path d={star(112.5, 64, 4.5)} fill="#ffc857" stroke="#f0a04b" strokeWidth="0.8" />
           {arm('M75,99 Q86,96 94,91', 95, 90, 'r')}
         </>
       );
@@ -138,7 +138,7 @@ export function MikoAvatar({ mood = 'happy', size = 96, talking = false, classNa
   const m = MOODS[mood] ?? MOODS.happy;
   const hair = `hair${uid}`, iris = `iris${uid}`, dress = `dress${uid}`, shine = `shine${uid}`;
   const skin = '#ffe6d8';
-  const sleeve = '#2d2a7a';
+  const sleeve = '#2c3652';
 
   return (
     <svg
@@ -147,18 +147,18 @@ export function MikoAvatar({ mood = 'happy', size = 96, talking = false, classNa
     >
       <defs>
         <linearGradient id={hair} x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0" stopColor="#ff9fd0" />
-          <stop offset="0.55" stopColor="#ff5fa2" />
-          <stop offset="1" stopColor="#9b5cff" />
+          <stop offset="0" stopColor="#ffb3d4" />
+          <stop offset="0.55" stopColor="#ff6fa5" />
+          <stop offset="1" stopColor="#ff8f86" />
         </linearGradient>
         <linearGradient id={iris} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#5b2bd6" />
-          <stop offset="0.6" stopColor="#8f5cff" />
-          <stop offset="1" stopColor="#3ee0ff" />
+          <stop offset="0" stopColor="#7a2e4a" />
+          <stop offset="0.6" stopColor="#e85a8c" />
+          <stop offset="1" stopColor="#ffb38a" />
         </linearGradient>
         <linearGradient id={dress} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#3b35a0" />
-          <stop offset="1" stopColor="#241f6b" />
+          <stop offset="0" stopColor="#34405f" />
+          <stop offset="1" stopColor="#222a40" />
         </linearGradient>
         <linearGradient id={shine} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#fff" stopOpacity="0" />
@@ -178,8 +178,8 @@ export function MikoAvatar({ mood = 'happy', size = 96, talking = false, classNa
           <path d="M100,52 C106,66 106,80 102,94" stroke="#fff" strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
         </g>
         {/* hair ties */}
-        <circle cx="31" cy="35" r="4.2" fill="#3ee0ff" stroke={INK} strokeWidth="1.3" />
-        <circle cx="89" cy="35" r="4.2" fill="#3ee0ff" stroke={INK} strokeWidth="1.3" />
+        <circle cx="31" cy="35" r="4.2" fill="#ff9a76" stroke={INK} strokeWidth="1.3" />
+        <circle cx="89" cy="35" r="4.2" fill="#ff9a76" stroke={INK} strokeWidth="1.3" />
 
         {/* back hair */}
         <path d="M24,56 C22,26 40,12 60,12 C80,12 98,26 96,56 C96,72 92,84 88,90 L32,90 C28,84 24,72 24,56 Z" fill={`url(#${hair})`} stroke={INK} strokeWidth="1.6" />
@@ -187,12 +187,12 @@ export function MikoAvatar({ mood = 'happy', size = 96, talking = false, classNa
         {/* body */}
         <path d="M44,92 C40,100 37,116 35,132 L85,132 C83,116 80,100 76,92 Z" fill={`url(#${dress})`} stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
         {/* sailor collar + ribbon */}
-        <path d="M46,92 L60,104 L74,92 L80,100 L60,112 L40,100 Z" fill="#e9f8ff" stroke={INK} strokeWidth="1.3" strokeLinejoin="round" />
-        <path d="M47,96 L60,107 L73,96" stroke="#3ee0ff" strokeWidth="1.6" fill="none" />
-        <path d="M60,106 L52,112 L54,103 Z M60,106 L68,112 L66,103 Z" fill="#ff5fa2" stroke={INK} strokeWidth="1.1" strokeLinejoin="round" />
-        <circle cx="60" cy="106" r="2.4" fill="#ff5fa2" stroke={INK} strokeWidth="1.1" />
+        <path d="M46,92 L60,104 L74,92 L80,100 L60,112 L40,100 Z" fill="#fff6ec" stroke={INK} strokeWidth="1.3" strokeLinejoin="round" />
+        <path d="M47,96 L60,107 L73,96" stroke="#ff6fa5" strokeWidth="1.6" fill="none" />
+        <path d="M60,106 L52,112 L54,103 Z M60,106 L68,112 L66,103 Z" fill="#ff6fa5" stroke={INK} strokeWidth="1.1" strokeLinejoin="round" />
+        <circle cx="60" cy="106" r="2.4" fill="#ff6fa5" stroke={INK} strokeWidth="1.1" />
         {/* chest badge: tiny up-arrow */}
-        <path d="M60,120 l-4,5 h2.6 v4 h2.8 v-4 h2.6 z" fill="#22d3a6" opacity="0.9" />
+        <path d="M60,120 l-4,5 h2.6 v4 h2.8 v-4 h2.6 z" fill="#2fd38a" opacity="0.9" />
 
         {/* neck + face */}
         <rect x="55" y="84" width="10" height="9" rx="3" fill="#f5cdbb" />
@@ -234,9 +234,9 @@ export function MikoAvatar({ mood = 'happy', size = 96, talking = false, classNa
         <g className="miko-clip" transform="translate(84 22) rotate(18)">
           <path d="M-7,6 Q-10,0 -6,-2 L0,3 L6,-2 Q10,0 7,6 L0,4 Z" fill="#fff4fa" stroke={INK} strokeWidth="1" strokeLinejoin="round" />
           <line x1="-3" y1="-10" x2="-3" y2="2" stroke={INK} strokeWidth="1" />
-          <rect x="-5.2" y="-7" width="4.4" height="7" rx="1" fill="#22d3a6" stroke={INK} strokeWidth="0.9" />
+          <rect x="-5.2" y="-7" width="4.4" height="7" rx="1" fill="#2fd38a" stroke={INK} strokeWidth="0.9" />
           <line x1="3.4" y1="-6" x2="3.4" y2="5" stroke={INK} strokeWidth="1" />
-          <rect x="1.2" y="-4" width="4.4" height="6" rx="1" fill="#ff6a3d" stroke={INK} strokeWidth="0.9" />
+          <rect x="1.2" y="-4" width="4.4" height="6" rx="1" fill="#ff8551" stroke={INK} strokeWidth="0.9" />
         </g>
 
         {/* glasses for teaching */}
@@ -255,20 +255,20 @@ export function MikoAvatar({ mood = 'happy', size = 96, talking = false, classNa
       {mood === 'worried' && <path className="miko-sweat" d="M92,44 C88,50 88,55 92,55 C96,55 96,50 92,44 Z" fill="#8fd8ff" stroke="#3a8fd0" strokeWidth="1" />}
       {(mood === 'excited' || mood === 'proud' || mood === 'cheer') && (
         <g className="miko-sparkles">
-          <path d={star(14, 20, 6)} fill="#ffd23f" />
-          <path d={star(106, 14, 4.5)} fill="#3ee0ff" />
-          <path d={star(108, 46, 3.5)} fill="#ff5fa2" />
+          <path d={star(14, 20, 6)} fill="#ffc857" />
+          <path d={star(106, 14, 4.5)} fill="#3fb8f5" />
+          <path d={star(108, 46, 3.5)} fill="#ff6fa5" />
         </g>
       )}
       {mood === 'thinking' && (
         <g className="miko-think" fill="#fff" stroke={INK} strokeWidth="1.2">
           <circle cx="98" cy="26" r="2.4" />
           <circle cx="104" cy="17" r="3.4" />
-          <text x="104" y="12" textAnchor="middle" fontSize="13" fontWeight="900" fill="#9b5cff" stroke="none" fontFamily="Baloo 2, sans-serif">?</text>
+          <text x="104" y="12" textAnchor="middle" fontSize="13" fontWeight="900" fill="#ff9a76" stroke="none" fontFamily="Baloo 2, sans-serif">?</text>
         </g>
       )}
       {mood === 'sleepy' && (
-        <g className="miko-zzz" fill="#a59fd0" fontFamily="Baloo 2, sans-serif" fontWeight="800">
+        <g className="miko-zzz" fill="#cdbba8" fontFamily="Baloo 2, sans-serif" fontWeight="800">
           <text x="94" y="30" fontSize="10">z</text>
           <text x="101" y="20" fontSize="13">z</text>
           <text x="109" y="9" fontSize="16">Z</text>

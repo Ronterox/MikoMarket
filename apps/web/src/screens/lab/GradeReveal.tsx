@@ -14,7 +14,7 @@ export function GradeReveal({ report }: { report: RobustnessReport }) {
       setFlipped(true);
       const el = document.querySelector('.grade-card');
       const { x, y } = fx.centerOf(el);
-      if (report.grade === 'S' || report.grade === 'A') { fx.flash('rgba(255,210,63,0.5)'); fx.confetti(120); fx.burst(x, y, 'win', 40); }
+      if (report.grade === 'S' || report.grade === 'A') { fx.flash('rgba(255, 154, 118, 0.4)'); fx.confetti(120); fx.burst(x, y, 'win', 40); }
       else if (report.grade === 'B') fx.burst(x, y, 'spark', 30);
       else fx.burst(x, y, 'lesson', 14);
     }, 850);
