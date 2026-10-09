@@ -1,0 +1,10 @@
+{
+  "name": "@miko/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless MikoMarket: fetch, import, backtest, evolve, stress, walk-forward and a terminal replay game.",
+  "bin": { "miko": "./src/main.ts" },
+  "scripts": { "start": "bun src/main.ts", "test": "bun test" },
+  "dependencies": { "@miko/engine": "workspace:*", "@miko/data": "workspace:*" }
+}
