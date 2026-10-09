@@ -1,0 +1,9 @@
+{
+  "name": "@miko/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless, deterministic, dependency-free trading simulation engine. Runs in Bun, Node, browsers and Web Workers.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "bun test" }
+}
