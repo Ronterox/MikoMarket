@@ -1,0 +1,75 @@
+/* ───────────── Design tokens ─────────────
+   Night-sky arcade: deep indigo base, candy gradient accent (pink → violet → cyan),
+   teal/orange for up/down (colour-blind friendly, always paired with ▲▼). */
+:root,
+:root[data-theme='dark'] {
+  --bg: #0b0a24;
+  --bg-2: #161241;
+  --bg-glow: #2a1a6e;
+  --surface: rgba(34, 28, 92, 0.72);
+  --surface-solid: #1c1850;
+  --surface-2: #29226a;
+  --surface-3: #352c86;
+  --line: rgba(176, 164, 255, 0.16);
+  --line-strong: rgba(176, 164, 255, 0.32);
+  --text: #f5f2ff;
+  --muted: #aaa4dc;
+  --faint: #716aad;
+  --shadow: 0 10px 30px rgba(5, 3, 25, 0.55);
+  --shadow-sm: 0 4px 14px rgba(5, 3, 25, 0.45);
+
+  --pink: #ff5fa2;
+  --violet: #9b5cff;
+  --cyan: #3ee0ff;
+  --gold: #ffd23f;
+  --up: #22d3a6;
+  --up-ink: #052e25;
+  --down: #ff6a3d;
+  --down-ink: #3a1003;
+  --lesson: #7fb2ff;
+  --neutral-btn: #e9e6ff;
+
+  --grad: linear-gradient(135deg, #ff5fa2 0%, #9b5cff 55%, #3ee0ff 100%);
+  --grad-soft: linear-gradient(135deg, rgba(255, 95, 162, 0.22), rgba(155, 92, 255, 0.22) 55%, rgba(62, 224, 255, 0.22));
+  --grad-up: linear-gradient(180deg, #3cf0c0, #14b48c);
+  --grad-down: linear-gradient(180deg, #ff8a5c, #e2491d);
+
+  --chart-bg: transparent;
+  --chart-grid: rgba(176, 164, 255, 0.07);
+  --chart-text: #9d97d0;
+
+  --radius: 20px;
+  --radius-sm: 14px;
+  --radius-lg: 28px;
+  --font-display: 'Baloo 2', 'Nunito', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, sans-serif;
+  --tabbar-h: 66px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f1edff;
+  --bg-2: #e4dcff;
+  --bg-glow: #ffd6ec;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-solid: #ffffff;
+  --surface-2: #f3efff;
+  --surface-3: #e7e0ff;
+  --line: rgba(86, 64, 190, 0.14);
+  --line-strong: rgba(86, 64, 190, 0.28);
+  --text: #1d1748;
+  --muted: #5f5896;
+  --faint: #9a93c8;
+  --shadow: 0 10px 30px rgba(70, 50, 160, 0.16);
+  --shadow-sm: 0 4px 14px rgba(70, 50, 160, 0.12);
+  --up: #0ea882;
+  --up-ink: #ffffff;
+  --down: #e5532a;
+  --down-ink: #ffffff;
+  --lesson: #3f7fe0;
+  --neutral-btn: #2b2466;
+  --chart-grid: rgba(86, 64, 190, 0.07);
+  --chart-text: #6d66a3;
+  color-scheme: light;
+}
