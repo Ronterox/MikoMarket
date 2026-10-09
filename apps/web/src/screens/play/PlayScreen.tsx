@@ -3,7 +3,8 @@ import { listIndicators, type Instrument, type Timeframe } from '@miko/engine';
 import { Hud } from '../../components/Hud.tsx';
 import { Sheet } from '../../components/Sheet.tsx';
 import { Help } from '../../components/Help.tsx';
-import { PlayChart, SLOT_COLORS } from './PlayChart.tsx';
+import { PlayChart } from './PlayChart.tsx';
+import { SLOT_VARS } from '../../lib/theme.ts';
 import { PositionCard } from './PositionCard.tsx';
 import { SPEED_MS, usePlay, type RiskPct, type Speed } from '../../state/play.ts';
 import { useApp } from '../../state/app.ts';
@@ -45,75 +46,81 @@ export function PlayScreen() {
 
   return (
     <div className="screen play-screen">
-      <Hud />
-
-      <div className="market-bar">
-        <button className="market-btn" onClick={() => { sound.play('tick'); setPicker(true); }} aria-label="Change market">
-          <span className="market-emoji">{emojiFor(s.instrument)}</span>
-          <span className="market-sym">{displaySymbol(s.instrument.symbol)}</span>
-          <span className="market-tf">{s.tf}</span>
-          <span className="market-caret">▾</span>
-        </button>
-        <div className="market-meta">
-          {s.demo && <span className="badge demo" title="Server unreachable: synthetic demo data">🧪 Demo data</span>}
-          {s.mystery ? <span className="badge mystery">🎭 ???</span> : barTime !== undefined && <span className="badge date">{dateFmt(barTime, s.tf !== '1d' && s.tf !== '1w')}</span>}
-          {s.botSpec && <button className="badge bot" onClick={() => s.clearBot()} title="Remove bot">🤖 {s.botSpec.icon ?? ''} ✕</button>}
+      <div className="play-main">
+        <div className="market-bar">
+          <button className="market-btn" onClick={() => { sound.play('tick'); setPicker(true); }} aria-label="Change market">
+            <span className="market-emoji">{emojiFor(s.instrument)}</span>
+            <span className="market-sym">{displaySymbol(s.instrument.symbol)}</span>
+            <span className="market-tf">{s.tf}</span>
+            <span className="market-caret">▾</span>
+          </button>
+          <div className="market-meta">
+            {s.demo && <span className="badge demo" title="Server unreachable: synthetic demo data">🧪 Demo data</span>}
+            {s.mystery ? <span className="badge mystery">🎭 ???</span> : barTime !== undefined && <span className="badge date">{dateFmt(barTime, s.tf !== '1d' && s.tf !== '1w')}</span>}
+            {s.botSpec && <button className="badge bot" onClick={() => s.clearBot()} title="Remove bot">🤖 {s.botSpec.icon ?? ''} ✕</button>}
+          </div>
+          <button className="icon-btn" aria-label="Round settings" onClick={() => { sound.play('tick'); setGear(true); }}>⚙️</button>
         </div>
-        <button className="icon-btn" aria-label="Round settings" onClick={() => { sound.play('tick'); setGear(true); }}>⚙️</button>
-      </div>
 
-      <div className="chart-zone">
-        {session && !s.loading ? (
-          <PlayChart
-            session={session} botSession={s.botSession} version={s.version} round={s.round}
-            speedMs={SPEED_MS[s.speed]} indicators={s.indicators} mystery={s.mystery} onBracket={s.moveBracket}
-          />
-        ) : (
-          <div className="chart-loading"><span className="loader-candles"><i /><i /><i /><i /></span><span>Loading market…</span></div>
-        )}
-        {session && !s.live && s.speed === 0 && session.index === session.startIndex && !s.loading && (
-          <button className="start-hint" onClick={() => s.setSpeed(1)}>▶ Tap to start</button>
-        )}
-        <div className={`bars-left num ${s.live ? 'live' : ''}`} title={s.live ? 'Live market' : 'Bars left in this round'}>{s.live ? `📡 ${s.liveStatus === 'live' ? 'LIVE' : s.liveStatus}` : `⏳ ${barsLeft}`}</div>
-      </div>
+        <div className="chart-zone">
+          {session && !s.loading ? (
+            <PlayChart
+              session={session} botSession={s.botSession} version={s.version} round={s.round}
+              speedMs={SPEED_MS[s.speed]} indicators={s.indicators} mystery={s.mystery} onBracket={s.moveBracket}
+            />
+          ) : (
+            <div className="chart-loading"><span className="loader-candles"><i /><i /><i /><i /></span><span>Loading market…</span></div>
+          )}
+          {session && !s.live && s.speed === 0 && session.index === session.startIndex && !s.loading && (
+            <button className="start-hint" onClick={() => s.setSpeed(1)}>▶ Tap to start</button>
+          )}
+          <div className={`bars-left num ${s.live ? 'live' : ''}`} title={s.live ? 'Live market' : 'Bars left in this round'}>{s.live ? `📡 ${s.liveStatus === 'live' ? 'LIVE' : s.liveStatus}` : `⏳ ${barsLeft}`}</div>
+        </div>
 
-      <div className="chip-row" role="toolbar" aria-label="Indicators">
-        {favs.map((m) => {
-          const slot = s.indicators.indexOf(m.id);
-          return (
-            <button key={m.id} className={`chip ${slot >= 0 ? 'on' : ''}`} style={slot >= 0 ? { ['--chip-c' as string]: SLOT_COLORS[slot % 2]![0] } : undefined} onClick={() => s.toggleIndicator(m.id)} title={m.blurb}>
-              <span>{m.icon}</span>{m.name.length > 8 ? m.id.toUpperCase() : m.name}
-            </button>
-          );
-        })}
-        <button className="chip more" onClick={() => setMoreInd(true)} aria-label="All indicators">＋</button>
       </div>
+      <aside className="play-side">
+        <Hud />
 
-      {session && <PositionCard session={session} botSession={s.botSession} />}
+        <div className="chip-row" role="toolbar" aria-label="Indicators">
+          {favs.map((m) => {
+            const slot = s.indicators.indexOf(m.id);
+            return (
+              <button key={m.id} className={`chip ${slot >= 0 ? 'on' : ''}`} style={slot >= 0 ? { ['--chip-c' as string]: SLOT_VARS[slot % 2] } : undefined} onClick={() => s.toggleIndicator(m.id)} title={m.blurb}>
+                <span>{m.icon}</span>{m.name.length > 8 ? m.id.toUpperCase() : m.name}
+              </button>
+            );
+          })}
+          <button className="chip more" onClick={() => setMoreInd(true)} aria-label="All indicators">＋</button>
+        </div>
 
-      <div className="control-row">
-        {s.live ? <button className="step-btn" onClick={() => s.stopLive()}>🎮 Replay</button> : <div className="speed-ctl" role="radiogroup" aria-label="Replay speed">
-          {([0, 1, 2, 3] as Speed[]).map((sp) => (
-            <button key={sp} role="radio" aria-checked={s.speed === sp} className={`speed ${s.speed === sp ? 'on' : ''}`} onClick={() => s.setSpeed(sp)}>
-              {sp === 0 ? '⏸' : '▶'.repeat(sp)}
-            </button>
-          ))}
-        </div>}
-        {s.speed === 0 && !s.live && <button className="step-btn" onClick={() => { sound.play('tick'); s.step(); }} aria-label="Next bar">+1</button>}
-        <button className="finish-btn" onClick={() => s.finish()} disabled={!session || s.finishing}>🏁 Finish</button>
-      </div>
+        {session && <PositionCard session={session} botSession={s.botSession} />}
 
-      <div className="trade-row">
-        <button className="bigbtn buy" onClick={(e) => s.trade('buy', e.currentTarget)} disabled={!session || (session.done && !s.live)}>
-          <span className="bigbtn-ico">▲</span><span>BUY</span>
-        </button>
-        <button className="bigbtn close" onClick={(e) => s.close(e.currentTarget)} disabled={!pos && !(session?.state.workingOrders.length)}>
-          <span className="bigbtn-ico">✕</span><span>CLOSE</span>
-        </button>
-        <button className="bigbtn sell" onClick={(e) => s.trade('sell', e.currentTarget)} disabled={!session || (session.done && !s.live)}>
-          <span className="bigbtn-ico">▼</span><span>SELL</span>
-        </button>
-      </div>
+        <div className="control-row">
+          {s.live ? <button className="step-btn" onClick={() => s.stopLive()}>🎮 Replay</button> : <div className="speed-ctl" role="radiogroup" aria-label="Replay speed">
+            {([0, 1, 2, 3] as Speed[]).map((sp) => (
+              <button key={sp} role="radio" aria-checked={s.speed === sp} className={`speed ${s.speed === sp ? 'on' : ''}`} onClick={() => s.setSpeed(sp)}>
+                {sp === 0 ? '⏸' : '▶'.repeat(sp)}
+              </button>
+            ))}
+          </div>}
+          {s.speed === 0 && !s.live && <button className="step-btn" onClick={() => { sound.play('tick'); s.step(); }} aria-label="Next bar">+1</button>}
+          <button className="finish-btn" onClick={() => s.finish()} disabled={!session || s.finishing}>🏁 Finish</button>
+        </div>
+
+        <div className="trade-row">
+          <button className="bigbtn buy" onClick={(e) => s.trade('buy', e.currentTarget)} disabled={!session || (session.done && !s.live)}>
+            <span className="bigbtn-ico">▲</span><span>BUY</span>
+          </button>
+          <button className="bigbtn close" onClick={(e) => s.close(e.currentTarget)} disabled={!pos && !(session?.state.workingOrders.length)}>
+            <span className="bigbtn-ico">✕</span><span>CLOSE</span>
+          </button>
+          <button className="bigbtn sell" onClick={(e) => s.trade('sell', e.currentTarget)} disabled={!session || (session.done && !s.live)}>
+            <span className="bigbtn-ico">▼</span><span>SELL</span>
+          </button>
+        </div>
+
+        <div className="miko-slot" aria-hidden="true" />
+      </aside>
 
       <MarketPicker open={picker} onClose={() => setPicker(false)} />
 

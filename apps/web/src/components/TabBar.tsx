@@ -11,6 +11,7 @@ export function TabBar() {
   const setTab = useApp((s) => s.setTab);
   return (
     <nav className="tabbar" aria-label="Main">
+      <div className="rail-brand" aria-hidden="true"><span className="rail-logo">🌸</span><span className="rail-name">Miko</span></div>
       {TABS.map((t) => (
         <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
           <span className={`tab-ico ${t.id === 'play' ? 'tab-ico-play' : ''}`}>{t.icon}</span>

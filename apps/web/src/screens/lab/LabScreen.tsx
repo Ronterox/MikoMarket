@@ -14,6 +14,7 @@ import { GradeReveal } from './GradeReveal.tsx';
 import { arrow, compactMoney, num, pct, signedMoney } from '../../lib/format.ts';
 import { displaySymbol, emojiFor } from '../../lib/instruments.ts';
 import { sound } from '../../lib/sound.ts';
+import { DESKTOP, useMedia } from '../../lib/useMedia.ts';
 
 const GROUP_ICON: Record<string, string> = { trend: '📈', momentum: '⚡', volatility: '🎈', candles: '🕯️', time: '⏰' };
 const BOT_ICONS = ['🤖', '🦊', '🐉', '🦄', '🐙', '🚀', '🧠', '👾', '🐝', '⚔️'];
@@ -25,10 +26,12 @@ export function LabScreen() {
   const demo = usePlay((s) => s.demo);
   const [deck, setDeck] = useState(false);
   const [adding, setAdding] = useState(false);
+  const wide = useMedia(DESKTOP);
   const d = lab.draft;
 
   return (
     <div className="screen lab-screen">
+      <div className="lab-build">
       <div className="lab-scroll scroll">
         <header className="lab-head">
           <div className="lab-title">🤖 Bot Lab</div>
@@ -78,7 +81,7 @@ export function LabScreen() {
           {d.exitPreset === 'custom' && <CustomExit />}
         </section>
 
-        <ResultsPanel />
+        {!wide && <ResultsPanel />}
         <div className="lab-spacer" />
       </div>
 
@@ -93,6 +96,12 @@ export function LabScreen() {
           <span className="act-ico">🧪</span><span>STRESS</span>
         </button>
       </div>
+      </div>
+      {wide && (
+        <aside className="lab-side scroll">
+          {lab.panel === 'none' ? <LabEmpty /> : <ResultsPanel />}
+        </aside>
+      )}
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="🃏 Add a WHEN card">
         <BlockPicker onPick={(b) => { lab.addCard(b); setAdding(false); }} />
@@ -281,7 +290,7 @@ function ResultsPanel() {
         lab.stress ? (
           <>
             <GradeReveal report={lab.stress} />
-            <div className="rp-sub">🎲 1000 shuffled futures</div>
+            <div className="rp-sub">🎲 1000 random replays</div>
             <FanChart curves={lab.stress.monteCarlo.sampleCurves} base={lab.stress.monteCarlo.sampleCurves[0]?.[0] ?? 10_000} />
             <div className="mc-stats">
               <span className="mchip up"><b className="num">{Math.round(lab.stress.monteCarlo.probabilityOfProfit * 100)}%</b><small>Profit chance</small></span>
@@ -348,6 +357,18 @@ function Dna({ progress }: { progress: number }) {
           <i className="dna-a" /><i className="dna-b" />
         </span>
       ))}
+    </div>
+  );
+}
+
+function LabEmpty() {
+  const run = useLab();
+  return (
+    <div className="lab-empty">
+      <div className="lab-empty-title">Pick a move</div>
+      <button className="lab-empty-card test" onClick={() => void run.runTest()}><span>▶</span><b>TEST</b><small>History run</small></button>
+      <button className="lab-empty-card evolve" onClick={() => void run.runEvolve()}><span>🧬</span><b>EVOLVE</b><small>Auto-tune genes</small></button>
+      <button className="lab-empty-card stress" onClick={() => void run.runStress()}><span>🧪</span><b>STRESS</b><small>Grade S → D</small></button>
     </div>
   );
 }
