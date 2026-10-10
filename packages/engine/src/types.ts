@@ -474,7 +474,7 @@ export interface Profile {
   achievements: Record<string, number>; // id -> unlocked at
   strategies: SavedStrategy[];
   history: SessionSummary[]; // most recent first, capped
-  settings: { sound: boolean; music: boolean; assistant: boolean; reducedMotion: boolean };
+  settings: { sound: boolean; music: boolean; assistant: boolean; reducedMotion: boolean; /** Miko's synthesized voice (babble + exclamations). */ voice: boolean };
 }
 
 /** Persistence port — implemented by the data package (files) and the web app (localStorage/IndexedDB). */

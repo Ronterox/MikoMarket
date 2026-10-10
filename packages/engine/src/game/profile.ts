@@ -41,7 +41,7 @@ export function createProfile(id: string, name: string, now: number): Profile {
     achievements: {},
     strategies: [],
     history: [],
-    settings: { sound: true, music: true, assistant: true, reducedMotion: false },
+    settings: { sound: true, music: true, assistant: true, reducedMotion: false, voice: true },
   };
 }
 
