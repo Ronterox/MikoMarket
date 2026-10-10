@@ -30,6 +30,8 @@ export interface ResultsData {
   xpBefore: number;
   xpAfter: number;
   demo: boolean;
+  /** The bot you sent from the Lab, when it traded this round. */
+  bot?: { icon: string; netProfit: number; trades: number; wins: number };
 }
 
 export type Overlay =

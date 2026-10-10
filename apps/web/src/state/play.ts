@@ -114,6 +114,22 @@ let liveSource: EventSource | null = null;
 let pendingRiskPct: number | undefined;
 let haExplained = false;
 
+/** Saves the deployed bot's round as its own 'bot' session (played forward, so it counts as trading results). */
+function commitBotRound(bot: Session, spec: StrategySpec | null, now: Date) {
+  const metrics = bot.result().metrics;
+  const res = useApp.getState().commitSession({
+    summary: {
+      id: `b-${now.getTime()}`, t: now.getTime(), mode: 'bot', playedForward: true,
+      symbol: bot.instrument.symbol, timeframe: bot.timeframe, metrics,
+    },
+    trades: bot.trades,
+    initialCash: bot.initialCash,
+    today: todayLocal(now),
+    localHour: now.getHours(),
+  });
+  return { res, metrics, icon: spec?.icon ?? '🤖' };
+}
+
 function seededStart(n: number): number {
   const lo = Math.min(n - ROUND_BARS - 2, HISTORY_BARS + 60);
   const hi = Math.max(lo + 1, n - ROUND_BARS - 2);
@@ -456,11 +472,14 @@ export const usePlay = create<PlayState>((set, get) => {
       liveSource?.close();
       liveSource = null;
       set({ finishing: true, speed: 0 });
-      // Close anything open: the market order fills on the next bar (no peeking, no free exits).
-      if (session.state.position && !session.done && !live) {
-        session.flatten('manual');
-        session.step();
-        botSession?.step();
+      // Close anything open, yours and the bot's: the market order fills on the next bar (no peeking, no free exits).
+      const closeYou = !!session.state.position && !session.done && !live;
+      const closeBot = !!botSession?.state.position && !botSession.done;
+      if (closeYou) session.flatten('manual');
+      if (closeBot) botSession!.flatten('manual');
+      if (closeYou || closeBot) {
+        if (!session.done) session.step();
+        if (botSession && !botSession.done) botSession.step();
       }
       const result = session.result();
       const now = new Date();
@@ -478,17 +497,23 @@ export const usePlay = create<PlayState>((set, get) => {
         localHour: now.getHours(),
         tradeContext,
       });
-      const tip = coach.onSessionEnd(result.metrics, res.awards);
+      // The bot you sent from the Lab traded the same unseen bars: its trades are your results too.
+      const botRes = botSession && botSession.trades.length > 0 ? commitBotRound(botSession, get().botSpec, now) : null;
+      const awards = botRes ? [...res.awards, ...botRes.res.awards.map((w) => ({ ...w, reason: `Bot: ${w.reason}` }))] : res.awards;
+      const achievements = botRes ? [...res.achievements, ...botRes.res.achievements] : res.achievements;
+      const levelUp = botRes?.res.levelUp ?? res.levelUp;
+      const tip = coach.onSessionEnd(result.metrics, awards);
       const data: ResultsData = {
-        title: result.metrics.trades === 0 ? 'Patient round' : result.metrics.netProfit >= 0 ? 'Round cleared!' : 'Round complete',
-        awards: res.awards, ratingDelta: res.ratingDelta, achievements: res.achievements, levelUp: res.levelUp,
+        title: result.metrics.trades === 0 ? (botRes ? 'Your bot raced!' : 'Patient round') : result.metrics.netProfit >= 0 ? 'Round cleared!' : 'Round complete',
+        awards, ratingDelta: res.ratingDelta + (botRes?.res.ratingDelta ?? 0), achievements, levelUp,
         tip, netProfit: result.metrics.netProfit, trades: result.metrics.trades, wins: result.metrics.wins,
-        xpBefore, xpAfter: res.profile.xp, demo,
+        xpBefore, xpAfter: useApp.getState().profile.xp, demo,
+        ...(botRes ? { bot: { icon: botRes.icon, netProfit: botRes.metrics.netProfit, trades: botRes.metrics.trades, wins: botRes.metrics.wins } } : {}),
       };
       bump();
       const results = { kind: 'results' as const, data };
-      app.setOverlay(res.levelUp ? { kind: 'levelUp', level: res.levelUp, then: results } : results);
-      if (res.levelUp) app.say(coach.onLevelUp(res.levelUp));
+      app.setOverlay(levelUp ? { kind: 'levelUp', level: levelUp, then: results } : results);
+      if (levelUp) app.say(coach.onLevelUp(levelUp));
       app.say(tip);
     },
 

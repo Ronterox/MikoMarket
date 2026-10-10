@@ -1037,3 +1037,5 @@ body.miko-dragging, body.miko-dragging * { user-select: none; -webkit-user-selec
 .miko-free.below .miko-bubble::after { bottom: auto; top: -8px; transform: rotate(225deg); }
 .miko-free.below .miko-bubble-next { bottom: auto; top: -10px; }
 .miko-home-pill { padding: 5px 10px; border-radius: 999px; background: var(--grad); color: #fff; font-weight: 900; font-size: 12px; white-space: nowrap; }
+.results-bot { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; padding: 7px 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); font-weight: 800; font-size: 14px; }
+.results-bot small { color: var(--muted); font-weight: 700; }

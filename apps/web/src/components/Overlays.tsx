@@ -90,6 +90,13 @@ function Results({ data }: { data: ResultsData }) {
             <span>✅ <b className="num">{data.wins}</b> wins</span>
             <span className={`rating-delta ${data.ratingDelta >= 0 ? 'up' : 'down'}`}>⭐ <b className="num">{data.ratingDelta >= 0 ? '+' : ''}{Math.round(data.ratingDelta)}</b></span>
           </div>
+          {data.bot && (
+            <div className="results-bot" title="Your bot traded the same bars; its results count as yours">
+              <span>🤖 {data.bot.icon} Your bot</span>
+              <b className={`num ${data.bot.netProfit >= 0 ? 'up-text' : 'down-text'}`}>{arrow(data.bot.netProfit)} {signedMoney(data.bot.netProfit)}</b>
+              <small>{data.bot.trades} trades · {data.bot.wins} wins</small>
+            </div>
+          )}
         </div>
 
         <div className="results-xp">
