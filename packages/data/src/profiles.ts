@@ -53,11 +53,23 @@ export class FileProfileStore implements ProfileStore {
     }
   }
 
-  async save(profile: Profile): Promise<void> {
+  /** Saves run one at a time per profile, in call order, so the last save always wins. */
+  private queues = new Map<string, Promise<void>>();
+  private seq = 0;
+
+  save(profile: Profile): Promise<void> {
     const path = this.path(profile.id);
-    await mkdir(this.dir, { recursive: true });
-    const tmp = `${path}.${process.pid}.tmp`;
-    await writeFile(tmp, JSON.stringify(profile, null, 2));
-    await rename(tmp, path);
+    const body = JSON.stringify(profile, null, 2);
+    const prev = this.queues.get(path) ?? Promise.resolve();
+    const run = prev.catch(() => {}).then(async () => {
+      await mkdir(this.dir, { recursive: true });
+      // A temp file of its own: two writers sharing one would interleave their bytes.
+      const tmp = `${path}.${process.pid}.${++this.seq}.tmp`;
+      await writeFile(tmp, body);
+      await rename(tmp, path);
+    });
+    this.queues.set(path, run);
+    void run.finally(() => { if (this.queues.get(path) === run) this.queues.delete(path); }).catch(() => {});
+    return run;
   }
 }

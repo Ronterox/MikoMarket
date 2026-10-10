@@ -48,9 +48,28 @@ export class HybridProfileStore implements ProfileStore {
     return local;
   }
 
+  /** One upload in flight at a time; saves made meanwhile collapse into the newest one. */
+  private uploading: Promise<void> | null = null;
+  private pending: Profile | null = null;
+
   async save(profile: Profile): Promise<void> {
     await this.local.save(profile);
     if (!this.serverOk && Date.now() - this.lastFail < 60_000) return;
+    this.pending = profile;
+    if (!this.uploading) {
+      this.uploading = (async () => {
+        // Strictly in order, so an older profile can never land after a newer one.
+        while (this.pending) {
+          const next = this.pending;
+          this.pending = null;
+          await this.upload(next);
+        }
+      })().finally(() => { this.uploading = null; });
+    }
+    return this.uploading;
+  }
+
+  private async upload(profile: Profile): Promise<void> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 2500);
     try {

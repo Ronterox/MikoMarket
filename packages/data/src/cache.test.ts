@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Bar } from '@miko/engine';
@@ -78,6 +78,21 @@ describe('FileProfileStore', () => {
     expect(await store.load('p1')).toEqual(p);
     await expect(store.load('../etc')).rejects.toThrow();
     expect(profileProblems({ id: 'x' }).length).toBeGreaterThan(0);
+  });
+  test('overlapping saves never corrupt the file, and the last save wins', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'miko-prof-'));
+    const store = new FileProfileStore(dir);
+    // Alternating big and small bodies: a shared temp file would leave NUL holes or a torn tail.
+    const versions = Array.from({ length: 24 }, (_, i) => ({
+      id: 'p1', name: 'Miko', createdAt: 1, xp: i, level: 1, rating: 1000, streakDays: 0,
+      stats: {}, achievements: {}, strategies: [], settings: {},
+      history: Array.from({ length: i % 2 ? 400 : 3 }, (_, k) => ({ id: `s${k}`, note: 'x'.repeat(40) })),
+    }) as never);
+    await Promise.all(versions.map((v) => store.save(v)));
+    const raw = readFileSync(join(dir, 'p1.json'), 'utf8');
+    expect(raw.includes('\u0000')).toBe(false);
+    expect(JSON.parse(raw)).toEqual(versions[versions.length - 1]);
+    expect(readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([]);
   });
 });
 
