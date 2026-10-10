@@ -20,6 +20,7 @@ interface FloatText {
 }
 
 import { token } from './theme.ts';
+import { sound } from './sound.ts';
 
 /** Confetti follows the theme tokens (sakura, peach, sky, mint, a touch of gold, cream). */
 const confettiColors = () => [token('--brand'), token('--brand-2'), token('--info'), token('--up'), token('--gold'), token('--star')];
@@ -88,6 +89,8 @@ class FxEngine {
 
   confetti(count = 140): void {
     if (this.reduced) return;
+    sound.play('pop');
+    if (count >= 100) window.setTimeout(() => sound.play('pop'), 160 + Math.random() * 120);
     const w = window.innerWidth;
     const palette = confettiColors();
     for (let i = 0; i < count; i++) {

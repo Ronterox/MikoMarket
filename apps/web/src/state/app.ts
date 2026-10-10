@@ -106,7 +106,7 @@ export const useApp = create<AppState>((set, get) => ({
   mikoDrag: null,
   overlay: null,
 
-  setTab: (tab) => { if (tab !== get().tab) { sound.play('tick'); set({ tab }); } },
+  setTab: (tab) => { if (tab !== get().tab) { sound.play('tab'); set({ tab }); } },
   setTheme: (theme) => { applyTheme(theme); lsSet('miko.theme', theme); set({ theme }); },
 
   loadProfile: async () => {
@@ -154,7 +154,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setMood: (mikoMood) => set({ mikoMood }),
-  toggleMiko: () => { sound.play('tick'); set({ mikoCollapsed: !get().mikoCollapsed }); },
+  toggleMiko: () => { sound.play(get().mikoCollapsed ? 'open' : 'dismiss'); set({ mikoCollapsed: !get().mikoCollapsed }); },
   mikoReact: (kind) => set((s) => ({ mikoFx: { kind, n: (s.mikoFx?.n ?? 0) + 1 } })),
   setMikoStage: (mikoStage) => { if (get().mikoStage !== mikoStage) set({ mikoStage }); },
   setMikoDrag: (mikoDrag) => set({ mikoDrag }),

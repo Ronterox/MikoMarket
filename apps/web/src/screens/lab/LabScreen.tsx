@@ -36,11 +36,11 @@ export function LabScreen() {
         <header className="lab-head">
           <div className="lab-title">🤖 Bot Lab</div>
           <span className="badge">{emojiFor(instrument)} {displaySymbol(instrument.symbol)} · {tf}{demo ? ' · 🧪' : ''}</span>
-          <button className="deck-btn" onClick={() => { sound.play('tick'); setDeck(true); }}>🃏 Deck</button>
+          <button className="deck-btn" onClick={() => { sound.play('shuffle'); setDeck(true); }}>🃏 Deck</button>
         </header>
 
         <section className="bot-id">
-          <button className="bot-icon" aria-label="Change bot icon" onClick={() => { sound.play('tick'); const i = BOT_ICONS.indexOf(d.icon); useLab.setState({ draft: { ...d, icon: BOT_ICONS[(i + 1) % BOT_ICONS.length]! } }); }}>{d.icon}</button>
+          <button className="bot-icon" aria-label="Change bot icon" onClick={() => { sound.play('swap'); const i = BOT_ICONS.indexOf(d.icon); useLab.setState({ draft: { ...d, icon: BOT_ICONS[(i + 1) % BOT_ICONS.length]! } }); }}>{d.icon}</button>
           <input className="bot-name" value={d.name} onChange={(e) => lab.setName(e.target.value)} aria-label="Bot name" maxLength={22} />
           <div className="seg small" role="radiogroup" aria-label="Direction">
             {([['long', '▲', 'Long'], ['both', '↕', 'Both'], ['short', '▼', 'Short']] as [Dir, string, string][]).map(([k, ico, lbl]) => (
@@ -59,7 +59,7 @@ export function LabScreen() {
               </div>
             ))}
             {d.cards.length < 5 && (
-              <button className="add-card" onClick={() => { sound.play('tick'); setAdding(true); }}>
+              <button className="add-card" onClick={() => setAdding(true)}>
                 <span className="add-plus">＋</span><span>Add card</span>
               </button>
             )}
@@ -138,7 +138,7 @@ function GeneSlider({ card, g, onChange }: { card: CardInst; g: GeneSpec; onChan
   return (
     <label className="gene">
       <span className="gene-lbl">{g.label}</span>
-      <input type="range" min={g.min} max={g.max} step={step} value={v} onChange={(e) => onChange(Number(e.target.value))}
+      <input type="range" min={g.min} max={g.max} step={step} value={v} onChange={(e) => { sound.play('slide', (Number(e.target.value) - g.min) / (g.max - g.min || 1)); onChange(Number(e.target.value)); }}
         style={{ ['--p' as string]: `${((v - g.min) / (g.max - g.min || 1)) * 100}%` }} />
       <span className="gene-val num">{g.int ? Math.round(v) : num(v, step < 0.1 ? 2 : 1)}</span>
     </label>
@@ -154,7 +154,7 @@ function CustomExit() {
   const slider = (label: string, value: number, min: number, max: number, step: number, fn: (v: number) => void, suffix: string) => (
     <label className="gene">
       <span className="gene-lbl">{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => fn(Number(e.target.value))} style={{ ['--p' as string]: `${((value - min) / (max - min)) * 100}%` }} />
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => { sound.play('slide', (Number(e.target.value) - min) / (max - min)); fn(Number(e.target.value)); }} style={{ ['--p' as string]: `${((value - min) / (max - min)) * 100}%` }} />
       <span className="gene-val num">{num(value, 2).replace(/\.?0+$/, '')}{suffix}</span>
     </label>
   );
@@ -164,8 +164,8 @@ function CustomExit() {
       {slider('🎯 Target', rr, 0.5, 6, 0.25, (v) => set({ rr: v }), 'R')}
       <div className="gene">
         <span className="gene-lbl">🪢 Trail</span>
-        <button className={`mini-toggle ${trail !== null ? 'on' : ''}`} onClick={() => set({ trail: trail === null ? 3 : null })}>{trail !== null ? 'ON' : 'OFF'}</button>
-        {trail !== null && <input type="range" min={1} max={6} step={0.25} value={trail} onChange={(e) => set({ trail: Number(e.target.value) })} style={{ ['--p' as string]: `${((trail - 1) / 5) * 100}%` }} />}
+        <button className={`mini-toggle ${trail !== null ? 'on' : ''}`} onClick={() => { sound.play(trail === null ? 'toggleOn' : 'toggleOff'); set({ trail: trail === null ? 3 : null }); }}>{trail !== null ? 'ON' : 'OFF'}</button>
+        {trail !== null && <input type="range" min={1} max={6} step={0.25} value={trail} onChange={(e) => { sound.play('slide', (Number(e.target.value) - 1) / 5); set({ trail: Number(e.target.value) }); }} style={{ ['--p' as string]: `${((trail - 1) / 5) * 100}%` }} />}
       </div>
     </div>
   );
@@ -216,7 +216,7 @@ function Deck({ onPick }: { onPick: () => void }) {
                   <span className="collect-name">{s.spec.name}</span>
                   {s.report && <span className="collect-grade">{s.report.grade}</span>}
                 </button>
-                <button className="collect-play" onClick={() => { sendBot(s.spec); setTab('play'); onPick(); useApp.getState().sayText(`${s.spec.icon ?? '🤖'} ${s.spec.name} will trade next to you. Race it!`, 'excited', 60); }}>▶ Play</button>
+                <button className="collect-play" onClick={() => { sound.play('roundStart'); sendBot(s.spec); setTab('play'); onPick(); useApp.getState().sayText(`${s.spec.icon ?? '🤖'} ${s.spec.name} will trade next to you. Race it!`, 'excited', 60); }}>▶ Play</button>
               </div>
             ))}
           </div>
@@ -261,6 +261,7 @@ function ResultsPanel() {
 
   const sendToPlay = () => {
     const spec = buildSpec(lab.draft);
+    sound.play('roundStart');
     sendBot(spec);
     setTab('play');
     useApp.getState().sayText(`${spec.icon ?? '🤖'} ${spec.name} joins your round. Race it!`, 'excited', 60);
@@ -268,7 +269,7 @@ function ResultsPanel() {
 
   return (
     <section ref={ref} className={`result-panel panel-${lab.panel}`}>
-      <button className="panel-x" onClick={lab.closePanel} aria-label="Close results">✕</button>
+      <button className="panel-x" onClick={() => { sound.play('dismiss'); lab.closePanel(); }} aria-label="Close results">✕</button>
       {lab.panel === 'test' && (
         lab.test && series ? (
           <>
@@ -340,7 +341,7 @@ function EvolvePanel() {
           <div className="ba-oos">🆕 Unseen data: <b className={`num ${ev.outOfSample.metrics.netProfit >= 0 ? 'up-text' : 'down-text'}`}>{signedMoney(ev.outOfSample.metrics.netProfit)}</b></div>
           <div className="rp-actions">
             <button className="cta small" onClick={keep}>✅ Keep genes</button>
-            <button className="ghost-btn" onClick={close}>↩︎ Discard</button>
+            <button className="ghost-btn" onClick={() => { sound.play('cardRemove'); close(); }}>↩︎ Discard</button>
           </div>
         </div>
       )}

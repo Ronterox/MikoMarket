@@ -30,6 +30,8 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
   const box = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; above: boolean; arrow: number } | null>(null);
 
+  useEffect(() => { sound.play('open'); }, []);
+
   useEffect(() => { setVals({ ...defaults, ...(stored ?? {}) }); /* re-sync when switching indicators */ }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -75,12 +77,13 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
   };
 
   const reset = () => {
-    sound.play('whoosh');
+    sound.play('tap');
     setVals({ ...defaults });
     setIndParams(id, null);
     settle.current = window.setTimeout(() => commitIndParams(id), 400);
   };
 
+  const close = () => { sound.play('dismiss'); onClose(); };
   const isDefault = diff(vals) === null;
   const color = slot >= 0 ? `var(--ind-${(slot % 3) + 1})` : 'var(--brand)';
 
@@ -98,7 +101,7 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
           <b>{meta.name}</b>
           <small>{meta.blurb}</small>
         </div>
-        <button className="ind-pop-x" onClick={onClose} aria-label="Close">✕</button>
+        <button className="ind-pop-x" onClick={close} aria-label="Close">✕</button>
       </div>
 
       {meta.params.length === 0 ? (
@@ -119,7 +122,7 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
   );
 
   return createPortal(
-    <div className={`ind-pop-backdrop ${wide ? 'clear' : ''}`} onClick={onClose}>{body}</div>,
+    <div className={`ind-pop-backdrop ${wide ? 'clear' : ''}`} onClick={close}>{body}</div>,
     document.getElementById('overlay-root') ?? document.body,
   );
 }
@@ -131,7 +134,7 @@ function ParamControl({ spec, value, onChange }: { spec: ParamSpec; value: Param
         <span className="pp-lbl">{spec.label}</span>
         <div className="pp-pills">
           {(spec.options ?? []).map((o) => (
-            <button key={o} className={`pp-pill ${value === o ? 'on' : ''}`} onClick={() => { sound.play('tick'); onChange(spec.key, o, true); }}>{o}</button>
+            <button key={o} className={`pp-pill ${value === o ? 'on' : ''}`} onClick={() => { sound.play('select'); onChange(spec.key, o, true); }}>{o}</button>
           ))}
         </div>
       </div>
@@ -146,7 +149,7 @@ function ParamControl({ spec, value, onChange }: { spec: ParamSpec; value: Param
       <span className="pp-lbl">{spec.label}</span>
       <input
         type="range" min={min} max={max} step={step} value={v} style={{ ['--p' as string]: `${pct}%` }}
-        onChange={(e) => onChange(spec.key, spec.type === 'int' ? Math.round(Number(e.target.value)) : Number(Number(e.target.value).toFixed(d)))}
+        onChange={(e) => { sound.play('slide', max > min ? (Number(e.target.value) - min) / (max - min) : 0); onChange(spec.key, spec.type === 'int' ? Math.round(Number(e.target.value)) : Number(Number(e.target.value).toFixed(d))); }}
       />
       <span className="pp-val num">{v.toFixed(d)}</span>
     </label>

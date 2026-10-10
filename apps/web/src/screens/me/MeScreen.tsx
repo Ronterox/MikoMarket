@@ -49,7 +49,7 @@ export function MeScreen() {
       <div className="me-col me-col-a">
         <section className="trader-card" style={{ ['--rank-c' as string]: rank.color }}>
           <div className="tc-shine" />
-          <button className="tc-avatar" onClick={() => { sound.play('tick'); setAvatarIdx((i) => (i + 1) % AVATARS.length); }} aria-label="Change avatar">
+          <button className="tc-avatar" onClick={() => { sound.play('swap'); setAvatarIdx((i) => (i + 1) % AVATARS.length); }} aria-label="Change avatar">
             <span>{AVATARS[avatarIdx]}</span>
           </button>
           <div className="tc-main">
@@ -58,7 +58,7 @@ export function MeScreen() {
                 onBlur={(e) => { setName(e.target.value.trim()); setEditing(false); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
             ) : (
-              <button className="tc-name" onClick={() => setEditing(true)}>{profile.name} <span className="tc-edit">✎</span></button>
+              <button className="tc-name" onClick={() => { sound.play('tap'); setEditing(true); }}>{profile.name} <span className="tc-edit">✎</span></button>
             )}
             <div className="tc-rank">{rank.icon} {rank.title}</div>
             <div className="tc-tier"><span>{tier.icon} {tier.name}</span><b className="num">{Math.round(profile.rating)}</b></div>
@@ -87,7 +87,7 @@ export function MeScreen() {
             <Toggle icon="🐢" label="Calm motion" on={profile.settings.reducedMotion} onChange={(v) => setSettings({ reducedMotion: v })} />
             <Toggle icon={theme === 'dark' ? '🌙' : '☀️'} label="Night mode" on={theme === 'dark'} onChange={(v) => setTheme(v ? 'dark' : 'light')} />
             {mikoMoved && (
-              <button className="toggle miko-home" onClick={() => { sound.play('tick'); resetMikoSpots(); useApp.getState().sayText('Back to my usual spots! 🏠 Drag me anywhere, anytime.', 'happy', 40); }}>
+              <button className="toggle miko-home" onClick={() => { sound.play('drop'); resetMikoSpots(); useApp.getState().sayText('Back to my usual spots! 🏠 Drag me anywhere, anytime.', 'happy', 40); }}>
                 <span className="toggle-ico">📍</span>
                 <span className="toggle-lbl">Miko's spot</span>
                 <span className="miko-home-pill">↺ Home</span>

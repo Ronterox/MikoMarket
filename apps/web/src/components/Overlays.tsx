@@ -30,7 +30,7 @@ function LevelUp({ level }: { level: number }) {
     setTimeout(() => fx.confetti(160), 150);
   }, []);
   const next = () => {
-    sound.play('tick');
+    sound.play('tap');
     setOverlay(overlay?.kind === 'levelUp' ? overlay.then ?? null : null);
   };
   return (
@@ -61,15 +61,18 @@ function Results({ data }: { data: ResultsData }) {
 
   useEffect(() => {
     if (shown >= data.awards.length) {
+      if (data.ratingDelta > 0) window.setTimeout(() => sound.play('star'), 250);
       if (data.achievements.length) { sound.play('achievement'); fx.confetti(90); }
       return;
     }
-    const id = window.setTimeout(() => { sound.play('gen', shown); setShown((n) => n + 1); }, shown === 0 ? 450 : 170);
+    const id = window.setTimeout(() => { sound.play('xp', shown); setShown((n) => n + 1); }, shown === 0 ? 450 : 170);
     return () => window.clearTimeout(id);
   }, [shown, data.awards.length, data.achievements.length]);
 
   useEffect(() => {
-    if (data.netProfit > 0) { sound.play('win'); fx.burst(window.innerWidth / 2, window.innerHeight * 0.25, 'win', 40); }
+    if (data.netProfit <= 0) return;
+    const id = window.setTimeout(() => { sound.play('win'); fx.burst(window.innerWidth / 2, window.innerHeight * 0.25, 'win', 40); }, 450);
+    return () => window.clearTimeout(id);
   }, [data.netProfit]);
 
   const runningXp = data.awards.slice(0, shown).reduce((a, w) => a + w.amount, 0);
@@ -132,7 +135,7 @@ function Results({ data }: { data: ResultsData }) {
 
         <div className="results-actions">
           <button className="cta" onClick={again}>🎮 Play again</button>
-          <button className="ghost-btn" onClick={() => { sound.play('tick'); setOverlay(null); }}>✕</button>
+          <button className="ghost-btn" onClick={() => { sound.play('dismiss'); setOverlay(null); }}>✕</button>
         </div>
         {data.demo && <div className="results-demo">🧪 Demo data</div>}
         <span className="sr-only">Total {total} XP</span>

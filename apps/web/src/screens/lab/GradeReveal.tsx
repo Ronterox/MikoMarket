@@ -12,6 +12,7 @@ export function GradeReveal({ report }: { report: RobustnessReport }) {
     sound.play('reveal');
     const t = window.setTimeout(() => {
       setFlipped(true);
+      sound.play('grade', Math.max(0, 'SABCD'.indexOf(report.grade)));
       const el = document.querySelector('.grade-card');
       const { x, y } = fx.centerOf(el);
       if (report.grade === 'S' || report.grade === 'A') { fx.flash('rgba(255, 154, 118, 0.4)'); fx.confetti(120); fx.burst(x, y, 'win', 40); }

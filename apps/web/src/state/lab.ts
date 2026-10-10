@@ -238,15 +238,15 @@ export const useLab = create<LabState>((set, get) => {
     error: null,
 
     loadSpec: (spec, asNew = false) => {
-      sound.play('whoosh');
+      sound.play('select');
       const draft = draftFromSpec(spec, !asNew);
       lsSet('miko.lab.draft', draft);
       set({ draft, test: null, stress: null, evolved: null, panel: 'none' });
     },
     setName: (name) => update((d) => ({ ...d, name: name.slice(0, 22) || 'My Bot' })),
-    setDir: (dir) => { sound.play('tick'); update((d) => ({ ...d, dir })); },
-    addCard: (b) => { sound.play('buy'); update((d) => ({ ...d, cards: [...d.cards, cardFromBlock(b)].slice(0, 5) })); },
-    removeCard: (id) => { sound.play('whoosh'); update((d) => ({ ...d, cards: d.cards.filter((c) => c.uid !== id) })); },
+    setDir: (dir) => { sound.play('select'); update((d) => ({ ...d, dir })); },
+    addCard: (b) => { sound.play('cardAdd'); update((d) => ({ ...d, cards: [...d.cards, cardFromBlock(b)].slice(0, 5) })); },
+    removeCard: (id) => { sound.play('cardRemove'); update((d) => ({ ...d, cards: d.cards.filter((c) => c.uid !== id) })); },
     setGene: (id, g, v) => update((d) => ({
       ...d,
       cards: d.cards.map((c) => {
@@ -257,7 +257,7 @@ export const useLab = create<LabState>((set, get) => {
       }),
     })),
     setPreset: (p) => {
-      sound.play('tick');
+      sound.play('select');
       update((d) => ({ ...d, exitPreset: p, exits: p === 'custom' ? d.exits : structuredClone(EXIT_PRESETS[p].exits) }));
     },
     setCustomExit: ({ stop, rr, trail }) => update((d) => {
@@ -271,7 +271,7 @@ export const useLab = create<LabState>((set, get) => {
     runTest: async () => {
       const spec = prep();
       if (!spec || get().busy !== 'none') return;
-      sound.play('whoosh');
+      sound.play('scan');
       set({ busy: 'test', panel: 'test', test: null });
       try {
         const test = await runInWorker({ kind: 'backtest', series: lazySeries()!, spec, range: 'in' });
@@ -291,7 +291,7 @@ export const useLab = create<LabState>((set, get) => {
       const spec = prep();
       if (!spec || get().busy !== 'none') return;
       if (!spec.genes?.length) { sound.play('error'); useApp.getState().sayText('These cards have no sliders to evolve. Add a card with numbers!', 'teaching', 60); return; }
-      sound.play('reveal');
+      sound.play('evolve');
       const total = 20;
       set({ busy: 'evolve', panel: 'evolve', gens: [], genTotal: total, evolved: null });
       useApp.getState().sayText('Breeding bot babies… survival of the fittest! 🧬', 'excited', 50);
@@ -300,7 +300,7 @@ export const useLab = create<LabState>((set, get) => {
           if (p.kind === 'generation') { set((s) => ({ gens: [...s.gens, p.gen] })); sound.play('gen', p.gen.generation); }
         });
         set({ evolved: out });
-        sound.play('levelUp');
+        sound.play('evolveDone');
         commitLabEvent('evolution');
         const better = out.inSample.metrics.netProfit > out.before.metrics.netProfit;
         useApp.getState().sayText(better ? 'Evolution found better genes! Check the unseen data too 👀' : 'The original was already pretty tuned 💡', better ? 'proud' : 'thinking', 60);
@@ -323,7 +323,7 @@ export const useLab = create<LabState>((set, get) => {
     runStress: async () => {
       const spec = prep();
       if (!spec || get().busy !== 'none') return;
-      sound.play('whoosh');
+      sound.play('stress');
       set({ busy: 'stress', panel: 'stress', stress: null });
       try {
         const [report] = await Promise.all([
@@ -361,7 +361,7 @@ export const useLab = create<LabState>((set, get) => {
       const report = get().stress ?? undefined;
       if (existing >= 0 && !isTemplate) {
         app.saveProfile({ ...p, strategies: p.strategies.map((s, i) => (i === existing ? { ...s, spec: finalSpec, report: report ?? s.report } : s)) });
-        sound.play('close');
+        sound.play('select');
         app.sayText('Bot updated in your deck 🃏', 'happy', 40);
         return;
       }

@@ -1,8 +1,14 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { sound } from '../lib/sound.ts';
 
 /** Bottom sheet: the one "menu" pattern in the app. Tap backdrop or swipe-ish close button to dismiss. */
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: ReactNode; children: ReactNode }) {
+  const was = useRef(open);
+  useEffect(() => {
+    if (open !== was.current) sound.play(open ? 'open' : 'dismiss');
+    was.current = open;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };

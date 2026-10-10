@@ -96,7 +96,17 @@ export function LeaderboardScreen() {
   const podium = winners.slice(0, 3);
   const rest = winners.slice(3);
 
-  const go = (w?: string) => { if (!w) return; sound.play('tick'); setWeek(w); };
+  const podiumKey = podium.map((e) => e.id).join(',');
+  useEffect(() => {
+    if (state !== 'ok' || !podiumKey) return;
+    const places = podiumKey.split(',').length;
+    const ids: number[] = [];
+    for (let p = places; p >= 1; p--) ids.push(window.setTimeout(() => sound.play('podium', p), 200 + (places - p) * 380));
+    ids.push(window.setTimeout(() => sound.play('crown'), 200 + places * 380 + 150));
+    return () => ids.forEach((id) => window.clearTimeout(id));
+  }, [week, podiumKey, state]);
+
+  const go = (w?: string) => { if (!w) return; sound.play('select'); setWeek(w); };
 
   return (
     <div className="screen lb-screen">
@@ -118,7 +128,7 @@ export function LeaderboardScreen() {
               onBlur={(e) => { setName(e.target.value.trim()); setEditing(false); }}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
           ) : (
-            <button className="lb-name-btn" onClick={() => setEditing(true)}>{profile.name} <span className="tc-edit">✎</span></button>
+            <button className="lb-name-btn" onClick={() => { sound.play('tap'); setEditing(true); }}>{profile.name} <span className="tc-edit">✎</span></button>
           )}
         </div>
 
@@ -127,7 +137,7 @@ export function LeaderboardScreen() {
             <MikoAvatar mood="sleepy" size={120} />
             <b>The leaderboard is napping 😴</b>
             <span className="muted">No server right now. Your trades still count!</span>
-            <button className="cta small" onClick={() => setTab('play')}>▶ Play a round</button>
+            <button className="cta small" onClick={() => { sound.play('tap'); setTab('play'); }}>▶ Play a round</button>
           </div>
         ) : state === 'loading' && !board ? (
           <div className="lb-empty"><span className="loader-candles"><i /><i /><i /><i /></span></div>

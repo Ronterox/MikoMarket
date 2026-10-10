@@ -71,7 +71,7 @@ export function PlayScreen() {
     press.current.fired = false;
     press.current.t = window.setTimeout(() => {
       press.current.fired = true;
-      sound.play('tick');
+      sound.play('pickup');
       try { navigator.vibrate?.(12); } catch { /* not supported */ }
       setEditing(true);
     }, 480);
@@ -81,7 +81,7 @@ export function PlayScreen() {
     if (press.current.fired) { press.current.fired = false; return; }
     if (editing) return;
     // Active chip → its settings bubble. Inactive chip → draw it.
-    if (s.indicators.includes(m.id)) { sound.play('tick'); setPop({ id: m.id, anchor: el }); }
+    if (s.indicators.includes(m.id)) setPop({ id: m.id, anchor: el });
     else s.toggleIndicator(m.id);
   };
 
@@ -96,7 +96,7 @@ export function PlayScreen() {
     <div className="screen play-screen">
       <div className="play-main">
         <div className="market-bar">
-          <button className="market-btn" onClick={() => { sound.play('tick'); setPicker(true); }} aria-label="Change market">
+          <button className="market-btn" onClick={() => setPicker(true)} aria-label="Change market">
             <span className="market-emoji">{emojiFor(s.instrument)}</span>
             <span className="market-sym">{displaySymbol(s.instrument.symbol)}</span>
             <span className="market-tf">{s.tf}</span>
@@ -110,9 +110,9 @@ export function PlayScreen() {
                 <span className="ny-date">{clock.date}</span>
               </span>
             )}
-            {s.botSpec && <button className="badge bot" onClick={() => s.clearBot()} title="Remove bot">🤖 {s.botSpec.icon ?? ''} ✕</button>}
+            {s.botSpec && <button className="badge bot" onClick={() => { sound.play('tap'); s.clearBot(); }} title="Remove bot">🤖 {s.botSpec.icon ?? ''} ✕</button>}
           </div>
-          <button className="icon-btn" aria-label="Round settings" onClick={() => { sound.play('tick'); setGear(true); }}>⚙️</button>
+          <button className="icon-btn" aria-label="Round settings" onClick={() => setGear(true)}>⚙️</button>
         </div>
 
         <div className="chart-zone">
@@ -161,9 +161,9 @@ export function PlayScreen() {
               </span>
             );
           })}
-          {!editing && <button className="chip more" onClick={() => { sound.play('tick'); setMoreInd(true); }} aria-label="Add indicators">＋</button>}
+          {!editing && <button className="chip more" onClick={() => setMoreInd(true)} aria-label="Add indicators">＋</button>}
           {row.length > 0 && (
-            <button className={`chip more edit ${editing ? 'on' : ''}`} onClick={() => { sound.play('tick'); setEditing((e) => !e); }} aria-label={editing ? 'Done editing' : 'Edit indicator row'}>
+            <button className={`chip more edit ${editing ? 'on' : ''}`} onClick={() => { sound.play(editing ? 'drop' : 'tap'); setEditing((e) => !e); }} aria-label={editing ? 'Done editing' : 'Edit indicator row'}>
               {editing ? '✓' : '✎'}
             </button>
           )}
@@ -172,15 +172,15 @@ export function PlayScreen() {
         {session && <PositionCard session={session} botSession={s.botSession} />}
 
         <div className="control-row">
-          {s.live ? <button className="step-btn" onClick={() => s.stopLive()}>🎮 Replay</button> : <div className="speed-ctl" role="radiogroup" aria-label="Replay speed">
+          {s.live ? <button className="step-btn" onClick={() => { sound.play('tap'); s.stopLive(); }}>🎮 Replay</button> : <div className="speed-ctl" role="radiogroup" aria-label="Replay speed">
             {SPEEDS.map(({ sp, label, name }) => (
               <button key={sp} role="radio" aria-checked={s.speed === sp} aria-label={name} title={name} className={`speed ${sp === 1 ? 'slow' : ''} ${s.speed === sp ? 'on' : ''}`} onClick={() => s.setSpeed(sp)}>
                 {label}
               </button>
             ))}
           </div>}
-          {s.speed === 0 && !s.live && <button className="step-btn" onClick={() => { sound.play('tick'); s.step(); }} aria-label="Next bar">+1</button>}
-          <button className="finish-btn" onClick={() => s.finish()} disabled={!session || s.finishing}>🏁 Finish</button>
+          {s.speed === 0 && !s.live && <button className="step-btn" onClick={() => { sound.play('tap'); s.step(); }} aria-label="Next bar">+1</button>}
+          <button className="finish-btn" onClick={() => { sound.play('tap'); s.finish(); }} disabled={!session || s.finishing}>🏁 Finish</button>
         </div>
 
         <div className="trade-row">
@@ -212,11 +212,11 @@ export function PlayScreen() {
         <div className="sheet-section">
           <div className="sheet-label">Mystery date <Help text="Hides the date so you can't remember what happened next." /></div>
           <div className="seg">
-            <button className={`seg-btn ${!s.mystery ? 'on' : ''}`} onClick={() => s.setMystery(false)}>📅 Show</button>
-            <button className={`seg-btn ${s.mystery ? 'on' : ''}`} onClick={() => s.setMystery(true)}>🎭 Hide</button>
+            <button className={`seg-btn ${!s.mystery ? 'on' : ''}`} onClick={() => { sound.play('select'); s.setMystery(false); }}>📅 Show</button>
+            <button className={`seg-btn ${s.mystery ? 'on' : ''}`} onClick={() => { sound.play('select'); s.setMystery(true); }}>🎭 Hide</button>
           </div>
         </div>
-        <button className="wide-btn" onClick={() => { setGear(false); s.newRound(); }}>🎲 New random round</button>
+        <button className="wide-btn" onClick={() => { sound.play('whoosh'); setGear(false); s.newRound(); }}>🎲 New random round</button>
         {!s.demo && !s.live && <button className="wide-btn live" onClick={() => { setGear(false); s.goLive(); }}>📡 Trade it live</button>}
       </Sheet>
 
@@ -250,7 +250,7 @@ function MarketPicker({ open, onClose }: { open: boolean; onClose: () => void })
   const [selTf, setSelTf] = useState<Timeframe>(tf);
   useEffect(() => { if (open) setSelTf(tf); }, [open, tf]);
   const pick = (inst: Instrument) => {
-    sound.play('whoosh');
+    sound.play('select');
     onClose();
     void setMarket(inst, selTf);
     useApp.getState().sayText(`${emojiFor(inst)} ${displaySymbol(inst.symbol)} it is! Press ▶ when ready.`, 'excited', 35);
@@ -259,7 +259,7 @@ function MarketPicker({ open, onClose }: { open: boolean; onClose: () => void })
     <Sheet open={open} onClose={onClose} title="🌍 Pick a market">
       <div className="seg tf-row">
         {TIMEFRAMES.map((t) => (
-          <button key={t} className={`seg-btn ${selTf === t ? 'on' : ''}`} onClick={() => { sound.play('tick'); setSelTf(t); }}>{t}</button>
+          <button key={t} className={`seg-btn ${selTf === t ? 'on' : ''}`} onClick={() => { sound.play('select'); setSelTf(t); }}>{t}</button>
         ))}
       </div>
       <div className="market-grid">

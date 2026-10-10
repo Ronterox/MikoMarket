@@ -146,7 +146,7 @@ function juiceFor(trade: Trade, awards: XpAward[]) {
     fx.float(`${signedMoney(trade.pnl)}`, x, y - 10, token('--up'), 34);
     setTimeout(() => fx.float(`+${xp} XP`, x, y + 26, token('--brand-2'), 22), 260);
   } else {
-    sound.play('loss');
+    sound.play(trade.exitReason === 'stop' || trade.exitReason === 'trail' ? 'stopHit' : 'loss');
     fx.burst(x, y, 'lesson', 12);
     fx.float(`📘 Lesson +${xp} XP`, x, y, token('--info'), 24);
   }
@@ -184,12 +184,15 @@ export const usePlay = create<PlayState>((set, get) => {
       if (e.type === 'bar') {
         const s = get();
         if (!s.mystery) say(coachV2.onClock(e.bar.t));
+        // A gentle clock, only at the calm speeds.
+        if (!s.live && (s.speed === 1 || s.speed === 2)) sound.play('bar', e.bar.c >= e.bar.o ? 1 : -1);
       } else if (e.type === 'equity') {
         say(coachV2.onPerformance(coachCtx(session)));
       } else if (e.type === 'fill') {
-        // fill sounds for exits are handled by tradeClosed juice
+        // Entries get the "click-ding"; exits already have close / win / loss / stopHit.
+        const open = session.state.position;
+        if (!open || (open.side === 'long') === (e.fill.action === 'buy')) sound.play('fill', 1);
       } else if (e.type === 'positionOpened' && e.position.actor === 'manual') {
-        sound.play(e.position.side === 'long' ? 'buy' : 'sell');
         const { x, y } = fx.centerOf(document.querySelector('[data-fx="chart"]'));
         fx.float(e.position.side === 'long' ? '▲ LONG' : '▼ SHORT', x, y, e.position.side === 'long' ? token('--up') : token('--down'), 28);
         set((s) => ({ tradeContext: [...s.tradeContext, { riskPct: pendingRiskPct, followedPlan: true }] }));
@@ -201,7 +204,8 @@ export const usePlay = create<PlayState>((set, get) => {
         const awards = awardTrade(t, { equityBefore, riskPct: ctx?.riskPct, followedPlan: ctx?.followedPlan, streak: combo });
         set((s) => ({ combo, liveAwards: [...s.liveAwards, ...awards], lastTradeIndex: session.index }));
         juiceFor(t, awards);
-        if (combo >= 2) setTimeout(() => sound.play('combo', combo), 380);
+        if (combo === 3 || (combo >= 5 && combo % 5 === 0)) setTimeout(() => sound.play('streak'), 380);
+        else if (combo >= 2) setTimeout(() => sound.play('combo', combo), 380);
       }
       const tip = coach.observe(e, coachCtx(session));
       if (tip) useApp.getState().say(tip);
@@ -298,7 +302,9 @@ export const usePlay = create<PlayState>((set, get) => {
     },
 
     setSpeed: (speed) => {
-      sound.play('tick');
+      const { session, live } = get();
+      if (speed > 0 && get().speed === 0 && session && !live && session.index === session.startIndex) sound.play('roundStart');
+      else sound.play(speed === 0 ? 'pause' : 'speed', speed);
       if (speed > 0) { savePrefs({ lastSpeed: speed }); set({ speed, lastSpeed: speed as Exclude<Speed, 0> }); }
       else set({ speed });
     },
@@ -329,7 +335,7 @@ export const usePlay = create<PlayState>((set, get) => {
         useApp.getState().sayText(order.reason ?? 'Order rejected', 'worried', 60);
         return;
       }
-      sound.play('tick');
+      sound.play(action === 'buy' ? 'buy' : 'sell');
       const { x, y } = fx.centerOf(from);
       fx.burst(x, y, 'spark', 10);
       // When paused, reveal the next bar so the order fills immediately: instant feedback.
@@ -360,7 +366,7 @@ export const usePlay = create<PlayState>((set, get) => {
       const cur = get().indicators;
       const on = cur.includes(id);
       const next = on ? cur.filter((x) => x !== id) : [...cur, id].slice(-MAX_ACTIVE);
-      sound.play('tick');
+      sound.play(on ? 'chipOff' : 'chipOn');
       savePrefs({ indicators: next });
       set({ indicators: next });
       indicatorsChanged(id, on ? 'remove' : 'add');
@@ -380,7 +386,7 @@ export const usePlay = create<PlayState>((set, get) => {
       const { chipRow, indicators } = get();
       const row = chipRow.filter((x) => x !== id);
       const next = indicators.filter((x) => x !== id);
-      sound.play('whoosh');
+      sound.play('chipOff');
       savePrefs({ chipRow: row, indicators: next });
       set({ chipRow: row, indicators: next });
       if (next.length !== indicators.length) indicatorsChanged(id, 'remove');
@@ -401,12 +407,12 @@ export const usePlay = create<PlayState>((set, get) => {
       get().newRound();
     },
 
-    setRisk: (riskPct) => { sound.play('tick'); savePrefs({ riskPct }); set({ riskPct }); },
+    setRisk: (riskPct) => { sound.play('select'); savePrefs({ riskPct }); set({ riskPct }); },
 
-    setStopMult: (stopMult) => { sound.play('tick'); savePrefs({ stopMult }); set({ stopMult }); },
+    setStopMult: (stopMult) => { sound.play('select'); savePrefs({ stopMult }); set({ stopMult }); },
 
     setCandleMode: (candleMode) => {
-      sound.play('tick');
+      if (candleMode !== get().candleMode) sound.play('swap');
       savePrefs({ candleMode });
       set({ candleMode });
       if (candleMode === 'ha' && !haExplained) {
@@ -420,7 +426,7 @@ export const usePlay = create<PlayState>((set, get) => {
       const { session } = get();
       if (!session?.state.position) return;
       session.setBracket({ stopLoss: null, trailDistance: null });
-      sound.play('error');
+      sound.play('warn');
       const lines = COACH_LINES.no_stop ?? [];
       const text = lines.length ? lines[Math.floor(Math.random() * lines.length)]!({}) : 'No stop now ⚠️ Decide where you are wrong before the market does.';
       useApp.getState().say({ id: 'no_stop_ui', mood: 'worried', priority: 99, text });
@@ -434,7 +440,7 @@ export const usePlay = create<PlayState>((set, get) => {
       if (!session || !pos) return;
       const plan = planQuickTrade(session, pos.side === 'long' ? 'buy' : 'sell', { riskPct, atrMult: stopMult });
       session.setBracket({ stopLoss: plan.stopLoss });
-      sound.play('tick');
+      sound.play('toggleOn');
       bump();
     },
 
@@ -448,7 +454,7 @@ export const usePlay = create<PlayState>((set, get) => {
       // Only when breakeven is still on the safe side of the last price (otherwise it would fill instantly).
       if (pos.side === 'long' ? be >= last : be <= last) return;
       session.setBracket({ stopLoss: be, trailDistance: null });
-      sound.play('combo', 1);
+      sound.play('breakeven');
       const { x, y } = fx.centerOf(document.querySelector('[data-fx="pnl"]'));
       fx.float('🛡️ Breakeven', x, y, token('--up'), 22);
       bump();
@@ -511,6 +517,7 @@ export const usePlay = create<PlayState>((set, get) => {
         ...(botRes ? { bot: { icon: botRes.icon, netProfit: botRes.metrics.netProfit, trades: botRes.metrics.trades, wins: botRes.metrics.wins } } : {}),
       };
       bump();
+      sound.play('roundEnd');
       const results = { kind: 'results' as const, data };
       app.setOverlay(levelUp ? { kind: 'levelUp', level: levelUp, then: results } : results);
       if (levelUp) app.say(coach.onLevelUp(levelUp));
@@ -539,7 +546,7 @@ export const usePlay = create<PlayState>((set, get) => {
           cur.step();
           set((s) => ({ version: s.version + 1, liveStatus: 'live' }));
         });
-        es.addEventListener('hello', () => set({ liveStatus: 'live' }));
+        es.addEventListener('hello', () => { sound.play('live'); set({ liveStatus: 'live' }); });
         es.addEventListener('error', () => {
           set({ liveStatus: 'offline' });
           if (es.readyState === EventSource.CLOSED) useApp.getState().sayText('Live feed is offline right now. Replay is always open! 🎮', 'worried', 60);

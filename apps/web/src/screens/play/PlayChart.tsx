@@ -8,6 +8,7 @@ import { computeIndicator, listIndicators, type Bar, type IndicatorMeta, type Pa
 import { priceFmt, signedMoney } from '../../lib/format.ts';
 import { useApp } from '../../state/app.ts';
 import { slotColors, token } from '../../lib/theme.ts';
+import { sound } from '../../lib/sound.ts';
 
 const HISTORY = 160;
 /** Outputs that are not price levels (never drawn on the price pane). */
@@ -440,6 +441,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { kind, price, off: false };
+    sound.play('pickup');
     chartRef.current?.applyOptions({ handleScroll: false, handleScale: false });
   };
 
@@ -473,7 +475,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     chartRef.current?.applyOptions({ handleScroll: true, handleScale: true });
     if (!d) return;
     if (d.off) onRemoveStopRef.current();
-    else onBracketRef.current(d.kind, d.price);
+    else { sound.play('drop'); onBracketRef.current(d.kind, d.price); }
   };
 
   return (
