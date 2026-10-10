@@ -3,6 +3,7 @@ import { useApp, type Tab } from '../state/app.ts';
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'play', icon: '▶', label: 'Play' },
   { id: 'lab', icon: '🤖', label: 'Bot Lab' },
+  { id: 'leaders', icon: '🏆', label: 'Ranks' },
   { id: 'me', icon: '👤', label: 'Me' },
 ];
 

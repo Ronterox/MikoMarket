@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Stars } from './components/Stars.tsx';
 import { TabBar } from './components/TabBar.tsx';
 import { FxLayer } from './components/FxLayer.tsx';
@@ -7,6 +8,7 @@ import { MikoDock } from './miko/MikoDock.tsx';
 import { PlayScreen } from './screens/play/PlayScreen.tsx';
 import { LabScreen } from './screens/lab/LabScreen.tsx';
 import { MeScreen } from './screens/me/MeScreen.tsx';
+import { LeaderboardScreen } from './screens/leaders/LeaderboardScreen.tsx';
 import { coach, todayLocal, useApp } from './state/app.ts';
 import { usePlay } from './state/play.ts';
 import { sound } from './lib/sound.ts';
@@ -14,6 +16,7 @@ import { sound } from './lib/sound.ts';
 export function App() {
   const tab = useApp((s) => s.tab);
   const reduced = useApp((s) => s.profile.settings.reducedMotion);
+  const stage = useApp((s) => s.mikoStage);
 
   useEffect(() => {
     void useApp.getState().loadProfile().then(() => {
@@ -38,7 +41,7 @@ export function App() {
       if (e.key === 'b' || e.key === 'B') p.trade('buy', document.querySelector('.bigbtn.buy'));
       else if (e.key === 's' || e.key === 'S') p.trade('sell', document.querySelector('.bigbtn.sell'));
       else if (e.key === 'c' || e.key === 'C') p.close(document.querySelector('.bigbtn.close'));
-      else if (e.key === ' ') { e.preventDefault(); p.setSpeed(p.speed === 0 ? 1 : 0); }
+      else if (e.key === ' ') { e.preventDefault(); p.setSpeed(p.speed === 0 ? p.lastSpeed : 0); }
       else if (e.key === 'ArrowRight') p.step();
     };
     window.addEventListener('keydown', onKey);
@@ -52,9 +55,11 @@ export function App() {
         <main className="screens">
           <div className={`screen-slot ${tab === 'play' ? 'active' : ''}`}><PlayScreen /></div>
           <div className={`screen-slot ${tab === 'lab' ? 'active' : ''}`}><LabScreen /></div>
+          <div className={`screen-slot ${tab === 'leaders' ? 'active' : ''}`}>{tab === 'leaders' && <LeaderboardScreen />}</div>
           <div className={`screen-slot ${tab === 'me' ? 'active' : ''}`}>{tab === 'me' && <MeScreen />}</div>
         </main>
-        <div className={`miko-anchor tab-${tab}`}><MikoDock /></div>
+        {/* On Play, Miko stands on her stage at the chart's bottom-left (never over the buttons or the price axis). */}
+        {tab === 'play' && stage ? createPortal(<MikoDock />, stage) : <div className={`miko-anchor tab-${tab}`}><MikoDock /></div>}
         <TabBar />
       </div>
       <FxLayer />
