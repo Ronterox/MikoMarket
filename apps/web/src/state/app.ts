@@ -11,6 +11,10 @@ import { lsGet, lsSet } from '../lib/storage.ts';
 export type Tab = 'play' | 'lab' | 'leaders' | 'me';
 /** One-shot visual reactions on Miko (surprise jump with a "!", or a happy sparkle). */
 export type MikoFx = { kind: 'surprise' | 'sparkle'; n: number } | null;
+/** Where the player dropped Miko: her centre as a fraction of the viewport. */
+export interface MikoSpot { x: number; y: number }
+/** While dragging: her centre in px. */
+export type MikoDrag = { x: number; y: number } | null;
 export type Theme = 'dark' | 'light';
 
 export interface ResultsData {
@@ -50,6 +54,9 @@ interface AppState {
   mikoFx: MikoFx;
   /** Play's chart "stage" element: Miko docks there on the Play tab. */
   mikoStage: HTMLElement | null;
+  /** Player-chosen spots, per tab (none = her default spot). */
+  mikoSpots: Partial<Record<Tab, MikoSpot>>;
+  mikoDrag: MikoDrag;
   overlay: Overlay;
 
   setTab(t: Tab): void;
@@ -65,6 +72,9 @@ interface AppState {
   toggleMiko(): void;
   mikoReact(kind: 'surprise' | 'sparkle'): void;
   setMikoStage(el: HTMLElement | null): void;
+  setMikoDrag(d: MikoDrag): void;
+  setMikoSpot(tab: Tab, spot: MikoSpot | null): void;
+  resetMikoSpots(): void;
   setOverlay(o: Overlay): void;
   /** Runs engine applySession, persists, and returns the result for the UI to celebrate. */
   commitSession(input: ApplySessionInput): ReturnType<typeof applySession>;
@@ -90,6 +100,8 @@ export const useApp = create<AppState>((set, get) => ({
   mikoCollapsed: false,
   mikoFx: null,
   mikoStage: null,
+  mikoSpots: lsGet<Partial<Record<Tab, MikoSpot>>>('miko.spots') ?? {},
+  mikoDrag: null,
   overlay: null,
 
   setTab: (tab) => { if (tab !== get().tab) { sound.play('tick'); set({ tab }); } },
@@ -143,6 +155,14 @@ export const useApp = create<AppState>((set, get) => ({
   toggleMiko: () => { sound.play('tick'); set({ mikoCollapsed: !get().mikoCollapsed }); },
   mikoReact: (kind) => set((s) => ({ mikoFx: { kind, n: (s.mikoFx?.n ?? 0) + 1 } })),
   setMikoStage: (mikoStage) => { if (get().mikoStage !== mikoStage) set({ mikoStage }); },
+  setMikoDrag: (mikoDrag) => set({ mikoDrag }),
+  setMikoSpot: (tab, spot) => {
+    const mikoSpots = { ...get().mikoSpots };
+    if (spot) mikoSpots[tab] = spot; else delete mikoSpots[tab];
+    lsSet('miko.spots', mikoSpots);
+    set({ mikoSpots });
+  },
+  resetMikoSpots: () => { lsSet('miko.spots', {}); set({ mikoSpots: {} }); },
   setOverlay: (overlay) => set({ overlay }),
 
   commitSession: (input) => {

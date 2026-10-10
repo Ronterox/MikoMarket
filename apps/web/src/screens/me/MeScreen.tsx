@@ -17,6 +17,8 @@ export function MeScreen() {
   const setName = useApp((s) => s.setName);
   const theme = useApp((s) => s.theme);
   const setTheme = useApp((s) => s.setTheme);
+  const mikoMoved = useApp((s) => Object.keys(s.mikoSpots).length > 0);
+  const resetMikoSpots = useApp((s) => s.resetMikoSpots);
   const [editing, setEditing] = useState(false);
   const [avatarIdx, setAvatarIdx] = useState(() => Math.abs(hashStr(profile.id)) % AVATARS.length);
 
@@ -84,6 +86,13 @@ export function MeScreen() {
             <Toggle icon="🌸" label="Miko" on={profile.settings.assistant} onChange={(v) => setSettings({ assistant: v })} />
             <Toggle icon="🐢" label="Calm motion" on={profile.settings.reducedMotion} onChange={(v) => setSettings({ reducedMotion: v })} />
             <Toggle icon={theme === 'dark' ? '🌙' : '☀️'} label="Night mode" on={theme === 'dark'} onChange={(v) => setTheme(v ? 'dark' : 'light')} />
+            {mikoMoved && (
+              <button className="toggle miko-home" onClick={() => { sound.play('tick'); resetMikoSpots(); useApp.getState().sayText('Back to my usual spots! 🏠 Drag me anywhere, anytime.', 'happy', 40); }}>
+                <span className="toggle-ico">📍</span>
+                <span className="toggle-lbl">Miko's spot</span>
+                <span className="miko-home-pill">↺ Home</span>
+              </button>
+            )}
           </div>
         </section>
       </div>

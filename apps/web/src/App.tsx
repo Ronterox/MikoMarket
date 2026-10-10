@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { Stars } from './components/Stars.tsx';
 import { TabBar } from './components/TabBar.tsx';
@@ -9,9 +9,10 @@ import { PlayScreen } from './screens/play/PlayScreen.tsx';
 import { LabScreen } from './screens/lab/LabScreen.tsx';
 import { MeScreen } from './screens/me/MeScreen.tsx';
 import { LeaderboardScreen } from './screens/leaders/LeaderboardScreen.tsx';
-import { coach, todayLocal, useApp } from './state/app.ts';
+import { coach, todayLocal, useApp, type Tab } from './state/app.ts';
 import { usePlay } from './state/play.ts';
 import { sound } from './lib/sound.ts';
+import { lsGet, lsSet } from './lib/storage.ts';
 
 export function App() {
   const tab = useApp((s) => s.tab);
@@ -22,6 +23,11 @@ export function App() {
     void useApp.getState().loadProfile().then(() => {
       const { profile, say } = useApp.getState();
       setTimeout(() => say(coach.greet(profile, todayLocal())), 700);
+      // Once ever: tell the player Miko can be moved (queued behind the greeting).
+      if (!lsGet('miko.dragHint')) {
+        lsSet('miko.dragHint', true);
+        setTimeout(() => useApp.getState().sayText('Psst! 💕 If I am ever in your way, drag me anywhere you like.', 'happy', 30), 900);
+      }
     });
     const unlock = () => sound.unlock();
     window.addEventListener('pointerdown', unlock, { passive: true });
@@ -58,12 +64,33 @@ export function App() {
           <div className={`screen-slot ${tab === 'leaders' ? 'active' : ''}`}>{tab === 'leaders' && <LeaderboardScreen />}</div>
           <div className={`screen-slot ${tab === 'me' ? 'active' : ''}`}>{tab === 'me' && <MeScreen />}</div>
         </main>
-        {/* On Play, Miko stands on her stage at the chart's bottom-left (never over the buttons or the price axis). */}
-        {tab === 'play' && stage ? createPortal(<MikoDock />, stage) : <div className={`miko-anchor tab-${tab}`}><MikoDock /></div>}
+        <MikoHost tab={tab} stage={stage} />
         <TabBar />
       </div>
       <FxLayer />
       <Overlays />
     </div>
   );
+}
+
+/**
+ * Where Miko stands. While dragged, or once the player has dropped her somewhere on this tab,
+ * she floats in a full-screen layer; otherwise she uses her default spot (on Play: the chart's
+ * bottom-left, clear of the buttons and the price axis).
+ */
+function MikoHost({ tab, stage }: { tab: Tab; stage: HTMLElement | null }) {
+  const spot = useApp((s) => s.mikoSpots[tab]);
+  const drag = useApp((s) => s.mikoDrag);
+  if (drag || spot) {
+    const fx = drag ? drag.x / window.innerWidth : spot!.x;
+    const fy = drag ? drag.y / window.innerHeight : spot!.y;
+    const style = { '--mx': drag ? `${drag.x}px` : `${fx * 100}%`, '--my': drag ? `${drag.y}px` : `${fy * 100}%` } as CSSProperties;
+    // The bubble opens towards the roomier side: right of her in the left half, below her near the top.
+    return (
+      <div className={`miko-free-layer ${drag ? 'dragging' : ''}`}>
+        <div className={`miko-free ${fx < 0.5 ? 'side-l' : 'side-r'} ${fy < 0.4 ? 'below' : ''}`} style={style}><MikoDock /></div>
+      </div>
+    );
+  }
+  return tab === 'play' && stage ? createPortal(<MikoDock />, stage) : <div className={`miko-anchor tab-${tab}`}><MikoDock /></div>;
 }

@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { MikoAvatar } from './MikoAvatar.tsx';
 import { coach, useApp } from '../state/app.ts';
 import { sound } from '../lib/sound.ts';
+import type { Tip } from '@miko/engine';
+import { beginMikoDrag, justDragged } from './drag.ts';
 
 const CHAR_MS = 22;
+/** Typing progress per tip: moving Miko remounts her, and she resumes instead of retyping. */
+const typedChars = new WeakMap<Tip, number>();
 
 /** Miko in her corner: speech bubble with typewriter text, auto-dismiss, tap for the next tip. */
 export function MikoDock() {
@@ -33,12 +37,13 @@ export function MikoDock() {
 
   // Typewriter
   useEffect(() => {
-    setTyped(0);
-    if (!tip) return;
-    setBounce((b) => b + 1);
-    let i = 0;
+    let i = tip ? typedChars.get(tip) ?? 0 : 0;
+    setTyped(i);
+    if (!tip || i >= tip.text.length) return;
+    if (i === 0) setBounce((b) => b + 1);
     const id = window.setInterval(() => {
       i += 1;
+      typedChars.set(tip, i);
       setTyped(i);
       if (i >= tip.text.length) window.clearInterval(id);
     }, CHAR_MS);
@@ -67,10 +72,11 @@ export function MikoDock() {
   const done = tip ? typed >= tip.text.length : true;
   const onBubble = () => {
     sound.play('tick');
-    if (!done && tip) setTyped(tip.text.length);
+    if (!done && tip) { typedChars.set(tip, tip.text.length); setTyped(tip.text.length); }
     else nextTip();
   };
   const onAvatar = () => {
+    if (justDragged()) return;
     if (collapsed) { toggle(); return; }
     sound.play('tick');
     if (!tip) say(coach.idle());
@@ -85,7 +91,7 @@ export function MikoDock() {
           {done && <span className="miko-bubble-next">{queue > 0 ? `▶ ${queue}` : '✓'}</span>}
         </div>
       )}
-      <button key={`${bounce}-${react?.n ?? 0}`} className="miko-avatar-btn" onClick={onAvatar} aria-label={collapsed ? 'Open Miko' : 'Ask Miko for a tip'}>
+      <button key={`${bounce}-${react?.n ?? 0}`} className="miko-avatar-btn" onClick={onAvatar} onPointerDown={beginMikoDrag} aria-label={collapsed ? 'Open Miko (drag to move her)' : 'Ask Miko for a tip (drag to move her)'}>
         <MikoAvatar mood={collapsed ? 'happy' : react?.kind === 'surprise' ? 'worried' : react?.kind === 'sparkle' ? 'excited' : mood} size={collapsed ? 40 : 78} talking={!!tip && !done} />
         {collapsed && tip && <span className="miko-dot" />}
         {!collapsed && react?.kind === 'surprise' && <span key={react.n} className="miko-react surprise" aria-hidden><b>!</b><i>😳</i></span>}
