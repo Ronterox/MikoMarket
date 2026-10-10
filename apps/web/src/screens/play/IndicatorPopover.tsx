@@ -4,6 +4,7 @@ import { listIndicators, type ParamSpec, type Params, type ParamValue } from '@m
 import { useMedia } from '../../lib/useMedia.ts';
 import { sound } from '../../lib/sound.ts';
 import { usePlay } from '../../state/play.ts';
+import { BAR_KEY, lineColors, mainColor, PALETTE, palVar, usesBars, visibleOutputs, type PalKey } from '../../lib/indStyle.ts';
 
 const WIDE = '(min-width: 768px)';
 const POP_W = 300;
@@ -22,7 +23,8 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
   const stored = usePlay((s) => s.indParams[id]);
   const active = usePlay((s) => s.indicators.includes(id));
   const slot = usePlay((s) => s.indicators.indexOf(id));
-  const { setIndParams, commitIndParams, toggleIndicator } = usePlay.getState();
+  const style = usePlay((s) => s.indStyle[id]);
+  const { setIndParams, commitIndParams, toggleIndicator, setIndStyle } = usePlay.getState();
   const defaults = useMemo(() => Object.fromEntries((meta?.params ?? []).map((p) => [p.key, p.default])) as Params, [meta]);
   const [vals, setVals] = useState<Params>(() => ({ ...defaults, ...(stored ?? {}) }));
   const push = useRef(0);
@@ -80,12 +82,19 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
     sound.play('tap');
     setVals({ ...defaults });
     setIndParams(id, null);
+    setIndStyle(id, null);
     settle.current = window.setTimeout(() => commitIndParams(id), 400);
   };
 
   const close = () => { sound.play('dismiss'); onClose(); };
-  const isDefault = diff(vals) === null;
-  const color = slot >= 0 ? `var(--ind-${(slot % 3) + 1})` : 'var(--brand)';
+  const isDefault = diff(vals) === null && !style;
+  const color = slot >= 0 ? palVar(mainColor(meta, slot, style)) : 'var(--brand)';
+  const bars = usesBars(id, style);
+  const barKey = !meta.overlay && bars ? BAR_KEY[id] : undefined;
+  const colors = lineColors(meta, Math.max(0, slot), style);
+  const outputs = visibleOutputs(meta).filter((o) => o.key !== barKey);
+  const pickColor = (key: string, c: PalKey) => { sound.play('select'); setIndStyle(id, { colors: { [key]: c } }); };
+  const setBars = (on: boolean) => { if (on === bars) return; sound.play(on ? 'chipOn' : 'chipOff'); setIndStyle(id, { bars: on }); };
 
   const body = (
     <div
@@ -109,6 +118,35 @@ export function IndicatorPopover({ id, anchor, onClose }: { id: string; anchor: 
       ) : (
         <div className="ind-pop-params">
           {meta.params.map((p) => <ParamControl key={p.key} spec={p} value={vals[p.key] ?? p.default} onChange={change} />)}
+        </div>
+      )}
+
+      {active && (
+        <div className="ind-pop-look">
+          {BAR_KEY[id] && !meta.overlay && (
+            <div className="pp-row pills">
+              <span className="pp-lbl">Style</span>
+              <div className="pp-pills">
+                <button className={`pp-pill ${!bars ? 'on' : ''}`} onClick={() => setBars(false)}>〰 Line</button>
+                <button className={`pp-pill ${bars ? 'on' : ''}`} onClick={() => setBars(true)}>▮ Bars</button>
+              </div>
+            </div>
+          )}
+          {outputs.map((o) => (
+            <div key={o.key} className="pp-row swatches">
+              <span className="pp-lbl">{outputs.length > 1 ? o.label : 'Color'}</span>
+              <div className="pp-swatches" role="radiogroup" aria-label={`${o.label} color`}>
+                {PALETTE.map((c) => (
+                  <button
+                    key={c} role="radio" aria-checked={colors[o.key] === c} aria-label={c}
+                    className={`swatch ${colors[o.key] === c ? 'on' : ''}`} style={{ ['--sw' as string]: palVar(c) }}
+                    onClick={() => pickColor(o.key, c)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          {barKey && <div className="pp-note">▮ Bars: green above zero, orange below. Faded while they shrink.</div>}
         </div>
       )}
 

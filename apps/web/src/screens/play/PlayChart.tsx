@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
-  CandlestickSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, LineSeries, LineStyle,
-  type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type LineData, type SeriesMarker,
+  CandlestickSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle,
+  type HistogramData, type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type LineData, type SeriesMarker,
   type Time, type UTCTimestamp, type WhitespaceData,
 } from 'lightweight-charts';
 import { computeIndicator, listIndicators, type Bar, type IndicatorMeta, type Params, type Session, type Trade } from '@miko/engine';
 import { priceFmt, signedMoney } from '../../lib/format.ts';
 import { useApp } from '../../state/app.ts';
-import { slotColors, token } from '../../lib/theme.ts';
+import { alpha, token } from '../../lib/theme.ts';
+import { BAR_KEY, lineColors, NON_PRICE, palColor, usesBars, type IndStyle } from '../../lib/indStyle.ts';
 import { sound } from '../../lib/sound.ts';
 
 const HISTORY = 160;
-/** Outputs that are not price levels (never drawn on the price pane). */
-const NON_PRICE = new Set(['percentB', 'bandwidth', 'slope', 'dir']);
 
 const ts = (t: number) => (t / 1000) as UTCTimestamp;
 
@@ -29,7 +28,32 @@ function candleAt(bars: Bar[], i: number, ha: HA | null) {
   return Number.isFinite(o) ? { time: ts(b.t), open: o, high: h, low: l, close: c } : toCandle(b);
 }
 
-interface IndLayer { id: string; meta: IndicatorMeta; params: Params; data: Record<string, Float64Array>; series: { key: string; s: ISeriesApi<'Line'> }[] }
+interface IndSeries { key: string; s: ISeriesApi<'Line'> | ISeriesApi<'Histogram'>; bar: boolean }
+interface IndLayer { id: string; meta: IndicatorMeta; params: Params; data: Record<string, Float64Array>; series: IndSeries[] }
+interface BarPal { up: string; upSoft: string; down: string; downSoft: string }
+type Point = LineData | HistogramData | WhitespaceData;
+
+const barPal = (): BarPal => {
+  const up = token('--up'), down = token('--down');
+  return { up: alpha(up, 0.85), upSoft: alpha(up, 0.4), down: alpha(down, 0.85), downSoft: alpha(down, 0.4) };
+};
+
+/**
+ * One chart point for output `key` at bar i. Bars are coloured by sign and fade while they shrink
+ * (momentum fading), volume bars by the candle's direction.
+ */
+function pointAt(layer: IndLayer, ser: IndSeries, i: number, bars: Bar[], pal: BarPal): Point {
+  const arr = layer.data[ser.key];
+  const v = arr?.[i] ?? NaN;
+  const time = ts(bars[i]!.t);
+  if (!Number.isFinite(v)) return { time };
+  if (!ser.bar) return { time, value: v };
+  if (ser.key === 'volume') return { time, value: v, color: bars[i]!.c >= bars[i]!.o ? pal.upSoft : pal.downSoft };
+  const prev = arr![i - 1] ?? NaN;
+  const pos = v >= 0;
+  const growing = !Number.isFinite(prev) || (pos ? v >= prev : v <= prev);
+  return { time, value: v, color: pos ? (growing ? pal.up : pal.upSoft) : (growing ? pal.down : pal.downSoft) };
+}
 
 export interface PlayChartProps {
   session: Session;
@@ -39,6 +63,7 @@ export interface PlayChartProps {
   speedMs: number;
   indicators: string[];
   indParams: Record<string, Params>;
+  indStyle: Record<string, IndStyle>;
   candleMode: 'candles' | 'ha';
   mystery: boolean;
   onBracket: (kind: 'stop' | 'target', price: number) => void;
@@ -48,7 +73,7 @@ export interface PlayChartProps {
 const nyFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
 const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
 
-export function PlayChart({ session, botSession, version, round, speedMs, indicators, indParams, candleMode, mystery, onBracket, onRemoveStop }: PlayChartProps) {
+export function PlayChart({ session, botSession, version, round, speedMs, indicators, indParams, indStyle, candleMode, mystery, onBracket, onRemoveStop }: PlayChartProps) {
   const theme = useApp((s) => s.theme);
   const wrap = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -211,18 +236,14 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     else L.real.applyOptions({ price });
   };
 
-  const lineData = (arr: Float64Array, from: number, to: number, bars: Bar[]): (LineData | WhitespaceData)[] => {
-    const out: (LineData | WhitespaceData)[] = [];
-    for (let i = from; i <= to; i++) {
-      const v = arr[i]!;
-      out.push(Number.isFinite(v) ? { time: ts(bars[i]!.t), value: v } : { time: ts(bars[i]!.t) });
-    }
-    return out;
-  };
-
   const fillLayer = (layer: IndLayer) => {
     const s = sessionRef.current;
-    for (const { key, s: ser } of layer.series) ser.setData(lineData(layer.data[key]!, fromIdx.current, s.index, s.series.bars));
+    const pal = barPal();
+    for (const ser of layer.series) {
+      const out: Point[] = [];
+      for (let i = fromIdx.current; i <= s.index; i++) out.push(pointAt(layer, ser, i, s.series.bars, pal));
+      ser.s.setData(out as LineData[]);
+    }
   };
 
   // ── new round: full data reset + view ──
@@ -242,14 +263,18 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    const sig = `${session.series.instrument.symbol}|${round}|${theme}|${indicators.join(',')}`;
+    // Bars vs line changes the series type, so it is part of the structure; colours are not.
+    const shape = indicators.map((id) => (usesBars(id, indStyle[id]) ? `${id}:bars` : id)).join(',');
+    const sig = `${session.series.instrument.symbol}|${round}|${theme}|${shape}`;
     if (sig === structure.current && layers.current.length === indicators.length) {
-      for (const layer of layers.current) {
+      layers.current.forEach((layer) => {
+        const colors = lineColors(layer.meta, indicators.indexOf(layer.id), indStyle[layer.id]);
+        for (const ser of layer.series) if (!ser.bar && colors[ser.key]) ser.s.applyOptions({ color: palColor(colors[ser.key]!) });
         const params = indParams[layer.id] ?? {};
-        if (JSON.stringify(params) === JSON.stringify(layer.params)) continue;
-        try { layer.data = computeIndicator(session.cols, layer.id, params); layer.params = params; } catch { continue; }
+        if (JSON.stringify(params) === JSON.stringify(layer.params)) return;
+        try { layer.data = computeIndicator(session.cols, layer.id, params); layer.params = params; } catch { return; }
         fillLayer(layer);
-      }
+      });
       return;
     }
     structure.current = sig;
@@ -264,18 +289,24 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       try { data = computeIndicator(session.cols, id, params); } catch { return; }
       const paneIndex = meta.overlay ? 0 : pane++;
       const keys = meta.outputs.map((o) => o.key).filter((k) => data[k] && (!meta.overlay || !NON_PRICE.has(k)));
-      const [c1, c2] = slotColors(slot);
-      const series = keys.map((key, k) => {
-        const s = chart.addSeries(LineSeries, {
-          color: k === 0 ? c1 : c2,
-          lineWidth: k === 0 ? 2 : 1,
-          lineStyle: meta.overlay && keys.length === 3 && k === 1 ? LineStyle.Dashed : LineStyle.Solid,
-          priceLineVisible: false, lastValueVisible: k === 0, crosshairMarkerVisible: false,
-          pointMarkersVisible: id === 'psar',
-          lineVisible: id !== 'psar',
-        }, paneIndex);
+      const colors = lineColors(meta, slot, indStyle[id]);
+      const barKey = !meta.overlay && usesBars(id, indStyle[id]) ? BAR_KEY[id] : undefined;
+      // Bars first so the lines draw on top of them (MACD: histogram under the two lines).
+      const order = barKey && keys.includes(barKey) ? [barKey, ...keys.filter((k) => k !== barKey)] : keys;
+      const series = order.map((key): IndSeries => {
+        const k = keys.indexOf(key);
+        const s = key === barKey
+          ? chart.addSeries(HistogramSeries, { base: 0, priceLineVisible: false, lastValueVisible: k === 0, priceFormat: { type: 'price', precision: 2, minMove: 0.01 } }, paneIndex)
+          : chart.addSeries(LineSeries, {
+            color: palColor(colors[key] ?? 'ink'),
+            lineWidth: k === 0 ? 2 : 1,
+            lineStyle: meta.overlay && keys.length === 3 && k === 1 ? LineStyle.Dashed : LineStyle.Solid,
+            priceLineVisible: false, lastValueVisible: k === 0, crosshairMarkerVisible: false,
+            pointMarkersVisible: id === 'psar',
+            lineVisible: id !== 'psar',
+          }, paneIndex);
         if (k === 0 && !meta.overlay) for (const lv of meta.levels ?? []) s.createPriceLine({ price: lv, color: cssVar('--ind-level'), lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: '' });
-        return { key, s };
+        return { key, s, bar: key === barKey };
       });
       const layer = { id, meta, params, data, series };
       layers.current.push(layer);
@@ -287,7 +318,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     for (let p = 1; p < panes.length; p++) panes[p]!.setStretchFactor(1);
     measureRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators, indParams, session, metas, theme, round]);
+  }, [indicators, indParams, indStyle, session, metas, theme, round]);
 
   // ── incremental updates per step ──
   useEffect(() => {
@@ -299,6 +330,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       fullReset();
     } else {
       const ha = haData();
+      const pal = barPal();
       for (let i = lastIdx.current + 1; i <= s.index; i++) {
         candle.update(candleAt(bars, i, ha));
         for (const layer of layers.current) {
@@ -306,10 +338,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
           if ((layer.data[layer.series[0]?.key ?? '']?.length ?? 0) <= i) {
             try { layer.data = computeIndicator(s.cols, layer.id, layer.params); } catch { /* keep old */ }
           }
-          for (const { key, s: ser } of layer.series) {
-            const v = layer.data[key]?.[i] ?? NaN;
-            ser.update(Number.isFinite(v) ? { time: ts(bars[i]!.t), value: v } : { time: ts(bars[i]!.t) });
-          }
+          for (const ser of layer.series) ser.s.update(pointAt(layer, ser, i, bars, pal) as LineData);
         }
       }
       lastIdx.current = s.index;
@@ -426,8 +455,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
         if (arrowEl) arrowEl.textContent = d?.off ? '✕' : pin === 'up' ? '▲' : pin === 'down' ? '▼' : '⇕';
       };
       place(stopHandle.current, 'stop', pos ? pos.trailStop ?? pos.stopLoss : undefined);
-      place(targetHandle.current, 'target', pos?.takeProfit);
-      raf = requestAnimationFrame(loop);
+      place(targetHandle.current, 'target', pos?.takeProfit);      raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);

@@ -60,6 +60,15 @@
   --ind-3: #e8c27a;
   --ind-3b: #f3dcae;
   --ind-level: rgba(205, 187, 168, 0.4);
+  /* Line palette the player picks indicator colours from (same keys in both themes). */
+  --pal-sky: #3fb8f5;
+  --pal-pink: #ff8fb8;
+  --pal-gold: #e8c27a;
+  --pal-mint: #5fe0b0;
+  --pal-grape: #b49cff;
+  --pal-coral: #ff9a76;
+  --pal-teal: #4fd1d9;
+  --pal-ink: #f3e6d6;
   --bot: #8fc9e8;
 
   --radius: 20px;
@@ -111,6 +120,14 @@
   --ind-3: #b8862f;
   --ind-3b: #dcb978;
   --ind-level: rgba(122, 102, 86, 0.4);
+  --pal-sky: #1e8fd0;
+  --pal-pink: #d94f87;
+  --pal-gold: #b8862f;
+  --pal-mint: #1f9e74;
+  --pal-grape: #7a5cd6;
+  --pal-coral: #e0622a;
+  --pal-teal: #1b9aa3;
+  --pal-ink: #4a3a2e;
   --bot: #4a90b8;
   color-scheme: light;
 }

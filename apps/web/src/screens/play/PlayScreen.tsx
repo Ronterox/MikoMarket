@@ -4,7 +4,7 @@ import { Hud } from '../../components/Hud.tsx';
 import { Sheet } from '../../components/Sheet.tsx';
 import { Help } from '../../components/Help.tsx';
 import { PlayChart } from './PlayChart.tsx';
-import { SLOT_VARS } from '../../lib/theme.ts';
+import { mainColor, palVar } from '../../lib/indStyle.ts';
 import { PositionCard } from './PositionCard.tsx';
 import { IndicatorPopover } from './IndicatorPopover.tsx';
 import { SPEED_MS, usePlay, type RiskPct, type Speed } from '../../state/play.ts';
@@ -119,7 +119,7 @@ export function PlayScreen() {
           {session && !s.loading ? (
             <PlayChart
               session={session} botSession={s.botSession} version={s.version} round={s.round}
-              speedMs={SPEED_MS[s.speed]} indicators={s.indicators} indParams={s.indParams} candleMode={s.candleMode}
+              speedMs={SPEED_MS[s.speed]} indicators={s.indicators} indParams={s.indParams} indStyle={s.indStyle} candleMode={s.candleMode}
               mystery={s.mystery} onBracket={s.moveBracket} onRemoveStop={s.removeStop}
             />
           ) : (
@@ -149,7 +149,7 @@ export function PlayScreen() {
             return (
               <span key={m.id} className="chip-wrap" style={{ ['--i' as string]: i }}>
                 <button
-                  className={`chip ${on ? 'on' : ''}`} style={on ? { ['--chip-c' as string]: SLOT_VARS[slot % 3] } : undefined}
+                  className={`chip ${on ? 'on' : ''}`} style={on ? { ['--chip-c' as string]: palVar(mainColor(m, slot, s.indStyle[m.id])) } : undefined}
                   onClick={(e) => onChip(m, e.currentTarget)} onPointerDown={pressStart} onPointerUp={pressEnd} onPointerLeave={pressEnd} onPointerCancel={pressEnd}
                   onContextMenu={(e) => e.preventDefault()}
                   title={on ? `${m.name}: tap for settings` : `${m.blurb}`} aria-pressed={on}

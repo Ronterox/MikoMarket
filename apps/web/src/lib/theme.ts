@@ -19,15 +19,6 @@ export function token(name: string): string {
   return FALLBACK[name] ?? '#ffffff';
 }
 
-/** Indicator slot colours: [main line, secondary lines]. */
-export function slotColors(slot: number): [string, string] {
-  const n = (slot % 3) + 1;
-  return [token(`--ind-${n}`), token(`--ind-${n}b`)];
-}
-
-/** CSS-variable form for DOM styling (chips etc.). */
-export const SLOT_VARS = ['var(--ind-1)', 'var(--ind-2)', 'var(--ind-3)'] as const;
-
 /** Same colour with a new alpha (accepts #rgb, #rrggbb, rgb(), rgba()). Chart libs want plain rgba. */
 export function alpha(color: string, a: number): string {
   const c = color.trim();

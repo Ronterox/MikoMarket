@@ -11,6 +11,7 @@ import { fx } from '../lib/fx.ts';
 import { signedMoney } from '../lib/format.ts';
 import { lsGet, lsSet } from '../lib/storage.ts';
 import { token } from '../lib/theme.ts';
+import type { IndStyle } from '../lib/indStyle.ts';
 import { coach, todayLocal, useApp, type ResultsData } from './app.ts';
 
 /** 0 = pause, 1 = 🐢 slow, 2 = ▶, 3 = ▶▶, 4 = ▶▶▶. */
@@ -36,6 +37,7 @@ interface Prefs {
 const prefs: Prefs = { symbol: 'SPY', tf: '5m', indicators: ['ema'], riskPct: 1, mystery: false, ...(lsGet<Partial<Prefs>>('miko.play') ?? {}) };
 const savePrefs = (p: Partial<Prefs>) => lsSet('miko.play', { ...(lsGet<Prefs>('miko.play') ?? prefs), ...p });
 const savedParams = lsGet<Record<string, Params>>('miko.indParams') ?? {};
+const savedStyle = lsGet<Record<string, IndStyle>>('miko.indStyle') ?? {};
 const initialRow = (() => {
   const row = Array.isArray(prefs.chipRow) ? prefs.chipRow.filter((x) => typeof x === 'string') : DEFAULT_ROW.slice();
   for (const id of prefs.indicators) if (!row.includes(id)) row.unshift(id);
@@ -66,6 +68,8 @@ interface PlayState {
   chipRow: string[];
   /** Custom params per indicator id (defaults when absent). */
   indParams: Record<string, Params>;
+  /** Line colours and bars-vs-line per indicator id (defaults when absent). */
+  indStyle: Record<string, IndStyle>;
   riskPct: RiskPct;
   stopMult: StopMult;
   candleMode: CandleMode;
@@ -91,6 +95,8 @@ interface PlayState {
   addChip(id: string): void;
   removeChip(id: string): void;
   setIndParams(id: string, params: Params | null): void;
+  /** Merge a style change; null clears it back to defaults. */
+  setIndStyle(id: string, patch: IndStyle | null): void;
   /** Lets Miko comment on a finished params change (call once the slider settles). */
   commitIndParams(id: string): void;
   setMystery(on: boolean): void;
@@ -251,6 +257,7 @@ export const usePlay = create<PlayState>((set, get) => {
     indicators: prefs.indicators.filter((id) => initialRow.includes(id)).slice(0, MAX_ACTIVE),
     chipRow: initialRow,
     indParams: savedParams,
+    indStyle: savedStyle,
     riskPct: prefs.riskPct,
     stopMult: prefs.stopMult === 1 || prefs.stopMult === 3 ? prefs.stopMult : 2,
     candleMode: prefs.candleMode === 'ha' ? 'ha' : 'candles',
@@ -397,6 +404,16 @@ export const usePlay = create<PlayState>((set, get) => {
       if (params && Object.keys(params).length > 0) all[id] = params; else delete all[id];
       lsSet('miko.indParams', all);
       set({ indParams: all });
+    },
+
+    setIndStyle: (id, patch) => {
+      const all = { ...get().indStyle };
+      const next: IndStyle = patch ? { ...all[id], ...patch, colors: patch.colors ? { ...all[id]?.colors, ...patch.colors } : all[id]?.colors } : {};
+      if (!next.colors || Object.keys(next.colors).length === 0) delete next.colors;
+      if (next.bars === undefined) delete next.bars;
+      if (Object.keys(next).length) all[id] = next; else delete all[id];
+      lsSet('miko.indStyle', all);
+      set({ indStyle: all });
     },
 
     commitIndParams: (id) => { if (get().indicators.includes(id)) indicatorsChanged(id, 'params'); },
