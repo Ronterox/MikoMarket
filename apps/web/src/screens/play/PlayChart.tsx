@@ -70,6 +70,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   /** Heikin-Ashi arrays (display only) when HA mode is on. */
   const haRef = useRef<HA | null>(null);
   const structure = useRef('');
+  const measureRef = useRef<() => void>(() => {});
 
   const metas = useMemo(() => new Map(listIndicators().map((m) => [m.id, m])), []);
   const candleModeRef = useRef(candleMode);
@@ -95,7 +96,26 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     chartRef.current = chart;
     candleRef.current = candle;
     markersRef.current = createSeriesMarkers(candle, []);
+    // Tell the chart zone where the price pane ends, so Miko stands above any oscillator panes.
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const zone = el.closest<HTMLElement>('.chart-zone');
+        const paneH = chart.panes()[0]?.getHeight() ?? 0;
+        if (!zone || paneH <= 0) return;
+        const below = zone.getBoundingClientRect().bottom - (el.getBoundingClientRect().top + paneH);
+        zone.style.setProperty('--price-pane-bottom', `${Math.max(0, Math.round(below))}px`);
+        zone.style.setProperty('--price-pane-h', `${Math.round(paneH)}px`);
+      });
+    };
+    measureRef.current = measure;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
     return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+      measureRef.current = () => {};
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
@@ -264,6 +284,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     // Stretch factors survive hidden tabs / resizes (fixed pixel heights do not).
     panes[0]?.setStretchFactor(panes.length > 1 ? Math.max(2.2, 3.6 - panes.length * 0.4) : 1);
     for (let p = 1; p < panes.length; p++) panes[p]!.setStretchFactor(1);
+    measureRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators, indParams, session, metas, theme, round]);
 
