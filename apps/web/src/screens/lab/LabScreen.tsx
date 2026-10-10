@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BLOCK_CATALOG, describeCondition, STRATEGY_TEMPLATES,
-  type BlockCard, type GeneSpec, type Metrics, type StrategySpec,
+  BLOCK_CATALOG, describeCondition, splitInOut, STRATEGY_TEMPLATES,
+  type BarSeries, type BlockCard, type GeneSpec, type Metrics, type StrategySpec,
 } from '@miko/engine';
-import { useLab, EXIT_PRESETS, geneValue, buildSpec, type CardInst, type Dir, type ExitPreset } from '../../state/lab.ts';
+import { useLab, EXIT_PRESETS, DEPTH_BARS, geneValue, buildSpec, type CardInst, type Dir, type ExitPreset, type LabDepth } from '../../state/lab.ts';
 import { usePlay } from '../../state/play.ts';
 import { useApp } from '../../state/app.ts';
 import { Sheet } from '../../components/Sheet.tsx';
@@ -18,6 +18,57 @@ import { DESKTOP, useMedia } from '../../lib/useMedia.ts';
 
 const GROUP_ICON: Record<string, string> = { trend: '📈', momentum: '⚡', volatility: '🎈', candles: '🕯️', time: '⏰' };
 const BOT_ICONS = ['🤖', '🦊', '🐉', '🦄', '🐙', '🚀', '🧠', '👾', '🐝', '⚔️'];
+const DEPTHS: [LabDepth, string][] = [['short', 'Short'], ['long', 'Long'], ['max', 'Max']];
+
+const nyDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+const nyShort = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+const nyYear = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: '2-digit' });
+
+/** "Jul 15 '26" in New York time. */
+function nyDate(t: number, withYear = true): string {
+  return withYear ? `${nyShort.format(t)} '${nyYear.format(t)}` : nyShort.format(t);
+}
+
+/** Distinct New York calendar dates covered by the bars. */
+function tradingDays(series: BarSeries): number {
+  const days = new Set<string>();
+  for (const b of series.bars) days.add(nyDay.format(b.t));
+  return days.size;
+}
+
+function HistoryRow() {
+  const instrument = usePlay((s) => s.instrument);
+  const tf = usePlay((s) => s.tf);
+  const depth = useLab((s) => s.depth);
+  const series = useLab((s) => s.series);
+  const demo = useLab((s) => s.seriesDemo);
+  const loading = useLab((s) => s.seriesLoading);
+  const setDepth = useLab((s) => s.setDepth);
+  const ensureSeries = useLab((s) => s.ensureSeries);
+  useEffect(() => { void ensureSeries(); }, [ensureSeries, instrument.symbol, tf, depth]);
+  const days = useMemo(() => (series ? tradingDays(series) : 0), [series]);
+
+  let text = '📅 Loading history…';
+  if (!loading && series && series.bars.length) {
+    const n = series.bars.length;
+    text = `📅 ${nyDate(series.bars[0]!.t)} → ${nyDate(series.bars[n - 1]!.t)} · ${n.toLocaleString('en-US')} bars · ${days} days`;
+    if (n < DEPTH_BARS[depth]) text += ' · all we have';
+    if (demo) text += ' · 🧪';
+  }
+  return (
+    <section className="lab-history">
+      <span className="lab-history-text num">{text}</span>
+      <div className="lab-history-ctrl">
+        <div className="seg small" role="radiogroup" aria-label="History depth">
+          {DEPTHS.map(([k, lbl]) => (
+            <button key={k} role="radio" aria-checked={depth === k} className={`seg-btn ${depth === k ? 'on' : ''}`} title={`${DEPTH_BARS[k].toLocaleString('en-US')} bars`} onClick={() => setDepth(k)}>{lbl}</button>
+          ))}
+        </div>
+        <Help text="TEST and EVOLVE learn on the older 70% of this history. STRESS grades the newest 30%, which the bot never saw. More history means more trades and a fairer grade." />
+      </div>
+    </section>
+  );
+}
 
 export function LabScreen() {
   const lab = useLab();
@@ -38,6 +89,8 @@ export function LabScreen() {
           <span className="badge">{emojiFor(instrument)} {displaySymbol(instrument.symbol)} · {tf}{demo ? ' · 🧪' : ''}</span>
           <button className="deck-btn" onClick={() => { sound.play('shuffle'); setDeck(true); }}>🃏 Deck</button>
         </header>
+
+        <HistoryRow />
 
         <section className="bot-id">
           <button className="bot-icon" aria-label="Change bot icon" onClick={() => { sound.play('swap'); const i = BOT_ICONS.indexOf(d.icon); useLab.setState({ draft: { ...d, icon: BOT_ICONS[(i + 1) % BOT_ICONS.length]! } }); }}>{d.icon}</button>
@@ -250,7 +303,7 @@ function MetricChips({ m }: { m: Metrics }) {
 
 function ResultsPanel() {
   const lab = useLab();
-  const series = usePlay((s) => s.series);
+  const series = lab.series;
   const sendBot = usePlay((s) => s.sendBot);
   const setTab = useApp((s) => s.setTab);
   const ref = useRef<HTMLElement>(null);
@@ -273,7 +326,7 @@ function ResultsPanel() {
       {lab.panel === 'test' && (
         lab.test && series ? (
           <>
-            <div className="rp-title">▶ Test run <Help text="Tested on the older 70% of the data (training part). STRESS checks the unseen 30%." /></div>
+            <div className="rp-title">▶ Test run <Help text={trainedText(series)} /></div>
             <EquityCurve values={lab.test.equity.filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 300)) === 0).map((e) => e.equity)} base={lab.test.initialCash} />
             <MetricChips m={lab.test.metrics} />
             <BacktestChart series={series} result={lab.test} />
@@ -309,6 +362,14 @@ function ResultsPanel() {
       )}
     </section>
   );
+}
+
+function trainedText(series: BarSeries): string {
+  const [a, b] = splitInOut(series, 0.3).inSample;
+  const from = series.bars[a];
+  const to = series.bars[b];
+  if (!from || !to) return 'Tested on the older 70% of the data (training part). STRESS checks the unseen 30%.';
+  return `Trained on ${nyDate(from.t, false)} → ${nyDate(to.t, false)} (the older 70%). STRESS checks the unseen 30%.`;
 }
 
 function EvolvePanel() {

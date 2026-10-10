@@ -1,14 +1,17 @@
 import { create } from 'zustand';
 import {
-  autoGenes, BLOCK_CATALOG, describeCondition, emptyMetrics, linkMirrorGenes, listIndicators, mirrorCondition, mirrorGenes,
+  autoGenes, BLOCK_CATALOG, describeCondition, emptyMetrics, leverageFor, linkMirrorGenes, listIndicators, mirrorCondition, mirrorGenes,
   STRATEGY_TEMPLATES, validateStrategy, getAtPointer, setAtPointer,
-  type BacktestResult, type BlockCard, type Condition, type ExitRules, type GAGeneration, type GeneSpec,
+  type BacktestResult, type BarSeries, type BlockCard, type Condition, type ExitRules, type GAGeneration, type GeneSpec,
   type RobustnessReport, type Sizing, type StrategySpec,
 } from '@miko/engine';
 import { runInWorker } from '../workers/client.ts';
 import type { EvolveOutput } from '../workers/protocol.ts';
 import { coach, todayLocal, useApp } from './app.ts';
 import { usePlay } from './play.ts';
+import { loadSeries } from '../lib/api.ts';
+import { compactMoney } from '../lib/format.ts';
+import { displaySymbol } from '../lib/instruments.ts';
 import { sound } from '../lib/sound.ts';
 import { fx } from '../lib/fx.ts';
 import { lsGet, lsSet } from '../lib/storage.ts';
@@ -149,6 +152,11 @@ export function geneValue(card: CardInst, g: GeneSpec): number {
 
 export type LabPanel = 'none' | 'test' | 'evolve' | 'stress';
 
+/** How much history the Lab trains and grades on. */
+export type LabDepth = 'short' | 'long' | 'max';
+export const DEPTH_BARS: Record<LabDepth, number> = { short: 5_000, long: 20_000, max: 50_000 };
+const isDepth = (v: unknown): v is LabDepth => v === 'short' || v === 'long' || v === 'max';
+
 interface LabState {
   draft: Draft;
   busy: 'none' | 'test' | 'evolve' | 'stress';
@@ -159,7 +167,13 @@ interface LabState {
   evolved: EvolveOutput | null;
   stress: RobustnessReport | null;
   error: string | null;
+  depth: LabDepth;
+  series: BarSeries | null;
+  seriesDemo: boolean;
+  seriesLoading: boolean;
 
+  setDepth(d: LabDepth): void;
+  ensureSeries(): Promise<BarSeries | null>;
   loadSpec(spec: StrategySpec, asNew?: boolean): void;
   setName(name: string): void;
   setDir(dir: Dir): void;
@@ -182,8 +196,19 @@ const initialDraft = (): Draft => {
   return draftFromSpec(STRATEGY_TEMPLATES[0]!, false);
 };
 
-function lazySeries() {
-  return usePlay.getState().series;
+
+/** When one contract costs more than the account can carry, explain it (and suggest the micro if there is one). */
+function tooBigMessage(series: BarSeries, initialCash: number): string | null {
+  const inst = series.instrument;
+  const last = series.bars[series.bars.length - 1];
+  if (!last) return null;
+  const notional = last.c * inst.pointValue;
+  if (notional <= initialCash * leverageFor(inst)) return null;
+  const name = displaySymbol(inst.symbol);
+  const microSym = inst.symbol.startsWith('@') ? `@M${inst.symbol.slice(1)}` : '';
+  const micro = microSym ? usePlay.getState().instruments.find((i) => i.symbol === microSym) : undefined;
+  const base = `One ${name} contract is worth ~${compactMoney(notional)}, too big for a ${compactMoney(initialCash)} account.`;
+  return micro ? `${base} Try the micro (${displaySymbol(micro.symbol)}) 💡` : `${base} Try a smaller market 💡`;
 }
 
 function celebrateXp(xp: number) {
@@ -194,7 +219,7 @@ function celebrateXp(xp: number) {
 
 function commitLabEvent(event: 'strategyBuilt' | 'evolution' | 'stressTest', report?: RobustnessReport) {
   const app = useApp.getState();
-  const series = lazySeries();
+  const series = useLab.getState().series ?? usePlay.getState().series;
   const now = new Date();
   const res = app.commitSession({
     summary: { id: `lab-${now.getTime()}`, t: now.getTime(), mode: 'bot', symbol: series?.instrument.symbol ?? 'DEMO', timeframe: series?.timeframe ?? '5m', metrics: emptyMetrics() },
@@ -210,6 +235,10 @@ function commitLabEvent(event: 'strategyBuilt' | 'evolution' | 'stressTest', rep
 }
 
 export const useLab = create<LabState>((set, get) => {
+  let loadedKey = '';
+  let wantedKey = '';
+  let inflight: { key: string; promise: Promise<BarSeries | null> } | null = null;
+
   const update = (fn: (d: Draft) => Draft) => {
     const draft = fn(get().draft);
     lsSet('miko.lab.draft', draft);
@@ -217,8 +246,8 @@ export const useLab = create<LabState>((set, get) => {
   };
 
   const prep = (): StrategySpec | null => {
-    const series = lazySeries();
-    if (!series) { useApp.getState().sayText('Loading market data… one sec! ⏳', 'thinking', 50); return null; }
+    const series = get().series ?? usePlay.getState().series;
+    if (!series && !get().seriesLoading) { useApp.getState().sayText('Loading market data… one sec! ⏳', 'thinking', 50); return null; }
     if (get().draft.cards.length === 0) { sound.play('error'); useApp.getState().sayText('Add at least one WHEN card so your bot knows when to trade 🃏', 'teaching', 60); return null; }
     const spec = buildSpec(get().draft);
     const errors = validateStrategy(spec);
@@ -236,6 +265,51 @@ export const useLab = create<LabState>((set, get) => {
     evolved: null,
     stress: null,
     error: null,
+    depth: (() => { const d = lsGet<LabDepth>('miko.lab.depth'); return isDepth(d) ? d : 'long'; })(),
+    series: null,
+    seriesDemo: false,
+    seriesLoading: false,
+
+    setDepth: (depth) => {
+      if (depth === get().depth) return;
+      sound.play('select');
+      lsSet('miko.lab.depth', depth);
+      set({ depth, test: null, stress: null, evolved: null, panel: 'none' });
+      void get().ensureSeries();
+    },
+
+    ensureSeries: () => {
+      const { instrument, tf } = usePlay.getState();
+      const depth = get().depth;
+      const key = `${instrument.symbol}|${tf}|${depth}`;
+      wantedKey = key;
+      if (key === loadedKey && get().series) return Promise.resolve(get().series);
+      if (inflight?.key === key) return inflight.promise;
+      set({ seriesLoading: true });
+      const promise = (async (): Promise<BarSeries | null> => {
+        let series: BarSeries | null = null;
+        let demo = false;
+        try {
+          const res = await loadSeries(instrument, tf, DEPTH_BARS[depth]);
+          series = res.series;
+          demo = res.demo;
+        } catch {
+          series = usePlay.getState().series;
+          demo = usePlay.getState().demo;
+        }
+        if (inflight?.key === key) inflight = null;
+        // A newer request won: hand it its result instead of overwriting state with stale data.
+        if (wantedKey !== key) return get().ensureSeries();
+        const changed = loadedKey !== '' && loadedKey !== key;
+        loadedKey = series ? key : '';
+        set({ series, seriesDemo: demo, seriesLoading: false });
+        // Old results were computed on other bars; drop them so charts never mix datasets.
+        if (changed) set({ test: null, stress: null, evolved: null, panel: get().busy === 'none' ? 'none' : get().panel });
+        return series;
+      })();
+      inflight = { key, promise };
+      return promise;
+    },
 
     loadSpec: (spec, asNew = false) => {
       sound.play('select');
@@ -274,10 +348,12 @@ export const useLab = create<LabState>((set, get) => {
       sound.play('scan');
       set({ busy: 'test', panel: 'test', test: null });
       try {
-        const test = await runInWorker({ kind: 'backtest', series: lazySeries()!, spec, range: 'in' });
+        const series = await get().ensureSeries();
+        if (!series) throw new Error('no market data yet');
+        const test = await runInWorker({ kind: 'backtest', series, spec, range: 'in' });
         set({ test });
         const m = test.metrics;
-        if (m.trades === 0) useApp.getState().sayText('No trades fired. Try looser cards or another market 🔍', 'thinking', 55);
+        if (m.trades === 0) useApp.getState().sayText(tooBigMessage(series, test.initialCash) ?? 'No trades fired. Try looser cards or another market 🔍', 'thinking', 55);
         else if (m.netProfit > 0) { sound.play('win'); useApp.getState().sayText(`${m.trades} trades, ${Math.round(m.winRate * 100)}% wins. Now 🧪 STRESS it to see if it's real!`, 'excited', 55); }
         else { sound.play('loss'); useApp.getState().sayText('Not profitable yet. Try 🧬 EVOLVE to tune the sliders!', 'teaching', 55); }
       } catch (e) {
@@ -296,7 +372,9 @@ export const useLab = create<LabState>((set, get) => {
       set({ busy: 'evolve', panel: 'evolve', gens: [], genTotal: total, evolved: null });
       useApp.getState().sayText('Breeding bot babies… survival of the fittest! 🧬', 'excited', 50);
       try {
-        const out = await runInWorker({ kind: 'evolve', series: lazySeries()!, spec, generations: total, population: 28, seed: Math.floor(Math.random() * 1e9) }, (p) => {
+        const series = await get().ensureSeries();
+        if (!series) throw new Error('no market data yet');
+        const out = await runInWorker({ kind: 'evolve', series, spec, generations: total, population: 28, seed: Math.floor(Math.random() * 1e9) }, (p) => {
           if (p.kind === 'generation') { set((s) => ({ gens: [...s.gens, p.gen] })); sound.play('gen', p.gen.generation); }
         });
         set({ evolved: out });
@@ -326,8 +404,10 @@ export const useLab = create<LabState>((set, get) => {
       sound.play('stress');
       set({ busy: 'stress', panel: 'stress', stress: null });
       try {
+        const series = await get().ensureSeries();
+        if (!series) throw new Error('no market data yet');
         const [report] = await Promise.all([
-          runInWorker({ kind: 'stress', series: lazySeries()!, spec, seed: Math.floor(Math.random() * 1e9) }),
+          runInWorker({ kind: 'stress', series, spec, seed: Math.floor(Math.random() * 1e9) }),
           new Promise((r) => setTimeout(r, 1400)), // let the gacha build-up breathe
         ]);
         set({ stress: report });

@@ -42,7 +42,8 @@ function isBar(b: unknown): b is Bar {
 export async function loadSeries(instrument: Instrument, timeframe: Timeframe, count = 5000): Promise<LoadedSeries> {
   try {
     const q = new URLSearchParams({ symbol: instrument.symbol, tf: timeframe, bars: String(count) });
-    const raw = await fetchJson<BarSeries | Bar[] | { bars: Bar[] }>(`/api/bars?${q}`, {}, 8000);
+    // Deep history (Bot Lab) can take a while to come from TradeStation the first time.
+    const raw = await fetchJson<BarSeries | Bar[] | { bars: Bar[] }>(`/api/bars?${q}`, {}, count > 5000 ? 45_000 : 8000);
     const bars = Array.isArray(raw) ? raw : raw.bars;
     if (Array.isArray(bars) && bars.length >= 300 && bars.every(isBar)) {
       const inst = !Array.isArray(raw) && 'instrument' in raw && raw.instrument ? { ...instrument, ...raw.instrument } : instrument;
