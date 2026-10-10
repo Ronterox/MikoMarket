@@ -11,6 +11,7 @@ import { SPEED_MS, usePlay, type RiskPct, type Speed } from '../../state/play.ts
 import { useApp } from '../../state/app.ts';
 import { displaySymbol, emojiFor, TIMEFRAMES } from '../../lib/instruments.ts';
 import { sound } from '../../lib/sound.ts';
+import { useDraw } from '../../state/draw.ts';
 
 /** Heikin-Ashi is a candle style (the 🕯️/HA switch), not a line indicator. */
 const HIDDEN = new Set(['ha']);
@@ -46,6 +47,24 @@ export function PlayScreen() {
   const closePop = useCallback(() => setPop(null), []);
 
   useEffect(() => { void usePlay.getState().init(); }, []);
+
+  const tool = useDraw((d) => d.tool);
+  const anchor = useDraw((d) => d.anchor);
+  const lineCount = useDraw((d) => d.bySymbol[s.instrument.symbol]?.length ?? 0);
+  // While a drawing tool is armed, taps go through Miko to the chart.
+  useEffect(() => {
+    document.body.classList.toggle('drawing', !!tool);
+    return () => document.body.classList.remove('drawing');
+  }, [tool]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const d = useDraw.getState();
+      if (e.key === 'Escape' && d.tool) d.setTool(d.tool);
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && d.selected && !(e.target instanceof HTMLInputElement)) d.remove(usePlay.getState().instrument.symbol, d.selected);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Replay clock: drives session.step() at the chosen speed.
   useEffect(() => {
@@ -125,7 +144,7 @@ export function PlayScreen() {
           ) : (
             <div className="chart-loading"><span className="loader-candles"><i /><i /><i /><i /></span><span>Loading market…</span></div>
           )}
-          {session && !s.live && s.speed === 0 && session.index === session.startIndex && !s.loading && (
+          {session && !s.live && !tool && s.speed === 0 && session.index === session.startIndex && !s.loading && (
             <button className="start-hint" onClick={() => s.setSpeed(s.lastSpeed)}>{SPEEDS[s.lastSpeed]!.label} Tap to start</button>
           )}
           <div className="chart-tl">
@@ -134,7 +153,13 @@ export function PlayScreen() {
               <button role="radio" aria-checked={s.candleMode === 'candles'} className={s.candleMode === 'candles' ? 'on' : ''} onClick={() => s.setCandleMode('candles')} title="Regular candles (real prices)">🕯️</button>
               <button role="radio" aria-checked={s.candleMode === 'ha'} className={s.candleMode === 'ha' ? 'on' : ''} onClick={() => s.setCandleMode('ha')} title="Heikin-Ashi: smoothed candles, display only">HA</button>
             </div>
+            <div className="candle-switch draw-switch" role="toolbar" aria-label="Drawing tools">
+              <button aria-pressed={tool === 'trend'} className={tool === 'trend' ? 'on' : ''} onClick={() => useDraw.getState().setTool('trend')} title="Trend line: tap two points">／</button>
+              <button aria-pressed={tool === 'hline'} className={tool === 'hline' ? 'on' : ''} onClick={() => useDraw.getState().setTool('hline')} title="Price level: tap once">―</button>
+              {lineCount > 0 && <button onClick={() => useDraw.getState().clear(s.instrument.symbol)} title="Erase all lines on this market" aria-label="Erase all lines">🧽</button>}
+            </div>
           </div>
+          {tool && <div className="draw-hint" role="status">{tool === 'hline' ? '― Tap a price for a level' : anchor ? '／ Now tap the second point' : '／ Tap the first point'}<button onClick={() => useDraw.getState().setTool(tool)} aria-label="Cancel drawing">✕</button></div>}
           <div ref={stageRef} className="miko-stage" />
         </div>
 

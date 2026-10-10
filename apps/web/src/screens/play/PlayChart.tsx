@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
   CandlestickSeries, ColorType, createChart, createSeriesMarkers, CrosshairMode, HistogramSeries, LineSeries, LineStyle,
-  type HistogramData, type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type LineData, type SeriesMarker,
+  type HistogramData, type IChartApi, type Logical, type MouseEventParams, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type LineData, type SeriesMarker,
   type Time, type UTCTimestamp, type WhitespaceData,
 } from 'lightweight-charts';
-import { computeIndicator, listIndicators, type Bar, type IndicatorMeta, type Params, type Session, type Trade } from '@miko/engine';
+import { computeIndicator, listIndicators, TIMEFRAME_MS, type Bar, type IndicatorMeta, type Params, type Session, type Trade } from '@miko/engine';
 import { priceFmt, signedMoney } from '../../lib/format.ts';
 import { useApp } from '../../state/app.ts';
 import { alpha, token } from '../../lib/theme.ts';
 import { BAR_KEY, lineColors, NON_PRICE, palColor, usesBars, type IndStyle } from '../../lib/indStyle.ts';
 import { sound } from '../../lib/sound.ts';
+import { useDraw, type DrawPoint } from '../../state/draw.ts';
+import { DrawLayer, distToSegment } from './drawLayer.ts';
 
 const HISTORY = 160;
 
@@ -95,6 +97,8 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   onRemoveStopRef.current = onRemoveStop;
   /** Heikin-Ashi arrays (display only) when HA mode is on. */
   const haRef = useRef<HA | null>(null);
+  const drawRef = useRef<DrawLayer | null>(null);
+  const delBtn = useRef<HTMLButtonElement>(null);
   const structure = useRef('');
   const measureRef = useRef<() => void>(() => {});
 
@@ -122,6 +126,81 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     chartRef.current = chart;
     candleRef.current = candle;
     markersRef.current = createSeriesMarkers(candle, []);
+
+    // ── drawings: bar time ⇄ chart x, via the full series so unrevealed (future) bars work too ──
+    const tfMs = () => TIMEFRAME_MS[sessionRef.current.timeframe] ?? 60_000;
+    const xOf = (t: number): number | null => {
+      const bars = sessionRef.current.series.bars;
+      const n = bars.length;
+      if (!n) return null;
+      let idx: number;
+      if (t <= bars[0]!.t) idx = (t - bars[0]!.t) / tfMs();
+      else if (t >= bars[n - 1]!.t) idx = n - 1 + (t - bars[n - 1]!.t) / tfMs();
+      else {
+        let lo = 0, hi = n - 1;
+        while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (bars[mid]!.t <= t) lo = mid; else hi = mid; }
+        idx = lo + (t - bars[lo]!.t) / (bars[hi]!.t - bars[lo]!.t);
+      }
+      return chart.timeScale().logicalToCoordinate((idx - fromIdx.current) as Logical);
+    };
+    const layer = new DrawLayer(xOf);
+    candle.attachPrimitive(layer);
+    drawRef.current = layer;
+
+    /** Data point under the pointer, snapped to the bar's open/high/low/close when within a few px (magnet). */
+    const pointAtCursor = (param: MouseEventParams<Time>): DrawPoint | null => {
+      if (!param.point || param.logical === undefined || (param.paneIndex ?? 0) !== 0) return null;
+      const s = sessionRef.current;
+      const bars = s.series.bars;
+      const idx = Math.round(param.logical) + fromIdx.current;
+      const last = bars.length - 1;
+      const t = idx <= last ? bars[Math.max(0, idx)]!.t : bars[last]!.t + (idx - last) * tfMs();
+      const raw = candle.coordinateToPrice(param.point.y);
+      if (raw === null) return null;
+      let p: number = raw;
+      if (idx >= 0 && idx <= s.index) {
+        const b = bars[idx]!;
+        let best = 13;
+        for (const v of [b.o, b.h, b.l, b.c]) {
+          const y = candle.priceToCoordinate(v);
+          if (y !== null && Math.abs(y - param.point.y) < best) { best = Math.abs(y - param.point.y); p = v; }
+        }
+      }
+      const tick = s.series.instrument.tickSize;
+      return { t, p: Math.round(p / tick) * tick };
+    };
+
+    const onClick = (param: MouseEventParams<Time>) => {
+      const st = useDraw.getState();
+      const symbol = sessionRef.current.series.instrument.symbol;
+      if (st.tool) {
+        const pt = pointAtCursor(param);
+        if (!pt) return;
+        if (st.tool === 'hline') st.add(symbol, { kind: 'hline', a: pt, b: pt });
+        else if (!st.anchor) { sound.play('tick'); st.setAnchor(pt); }
+        else if (pt.t !== st.anchor.t || pt.p !== st.anchor.p) st.add(symbol, { kind: 'trend', a: st.anchor, b: pt });
+        return;
+      }
+      // No tool: tapping a line selects it (then the 🗑 pill removes it), tapping elsewhere lets go.
+      if (!param.point || (param.paneIndex ?? 0) !== 0) { st.select(null); return; }
+      const width = chart.timeScale().width();
+      let hit: string | null = null, best = 10;
+      for (const d of st.bySymbol[symbol] ?? []) {
+        const e = layer.ends(d, width);
+        if (!e) continue;
+        const dist = distToSegment(param.point.x, param.point.y, e);
+        if (dist < best) { best = dist; hit = d.id; }
+      }
+      st.select(hit);
+    };
+    const onMove = (param: MouseEventParams<Time>) => {
+      const { tool, anchor } = useDraw.getState();
+      if (tool !== 'trend' || !anchor) return;
+      const pt = pointAtCursor(param);
+      if (pt) layer.set({ draft: { a: anchor, b: pt } });
+    };
+    chart.subscribeClick(onClick);
+    chart.subscribeCrosshairMove(onMove);
     // Tell the chart zone where the price pane ends, so Miko stands above any oscillator panes.
     let raf = 0;
     const measure = () => {
@@ -139,6 +218,9 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => {
+      chart.unsubscribeClick(onClick);
+      chart.unsubscribeCrosshairMove(onMove);
+      drawRef.current = null;
       ro.disconnect();
       cancelAnimationFrame(raf);
       measureRef.current = () => {};
@@ -150,6 +232,25 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       lines.current = {};
     };
   }, []);
+
+  // ── drawings follow the store (per symbol) and the theme ──
+  const symbol = session.series.instrument.symbol;
+  useEffect(() => {
+    const push = (st = useDraw.getState()) => drawRef.current?.set({
+      drawings: st.bySymbol[symbol] ?? [],
+      draft: st.tool === 'trend' && st.anchor ? { a: st.anchor, b: st.anchor } : null,
+      selected: st.selected,
+      color: cssVar('--draw'),
+    });
+    push();
+    let prev = useDraw.getState();
+    return useDraw.subscribe((st) => {
+      // Keep the live draft while the pointer moves; reset it only when the anchor changes.
+      if (st.anchor === prev.anchor && st.tool === prev.tool && st.bySymbol === prev.bySymbol && st.selected === prev.selected) return;
+      prev = st;
+      push(st);
+    });
+  }, [symbol, theme]);
 
   // ── theme colours ──
   useEffect(() => {
@@ -455,7 +556,21 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
         if (arrowEl) arrowEl.textContent = d?.off ? '✕' : pin === 'up' ? '▲' : pin === 'down' ? '▼' : '⇕';
       };
       place(stopHandle.current, 'stop', pos ? pos.trailStop ?? pos.stopLoss : undefined);
-      place(targetHandle.current, 'target', pos?.takeProfit);      raf = requestAnimationFrame(loop);
+      place(targetHandle.current, 'target', pos?.takeProfit);
+      // 🗑 pill sits on the selected line's middle (or near the left for a level)
+      const del = delBtn.current;
+      if (del) {
+        const st = useDraw.getState();
+        const d = st.selected ? st.bySymbol[s.series.instrument.symbol]?.find((x) => x.id === st.selected) : undefined;
+        const e = d && chart ? drawRef.current?.ends(d, chart.timeScale().width()) : null;
+        if (!d || !e) del.style.display = 'none';
+        else {
+          const x = d.kind === 'hline' ? 64 : (e[0] + e[2]) / 2, y = d.kind === 'hline' ? e[1] : (e[1] + e[3]) / 2;
+          del.style.display = '';
+          del.style.transform = `translate(${Math.round(x - 15)}px, ${Math.round(Math.max(4, Math.min(paneH - 34, y - 36)))}px)`;
+        }
+      }
+      raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
@@ -509,6 +624,10 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   return (
     <div className="play-chart" data-fx="chart">
       <div ref={wrap} className="play-chart-canvas" />
+      <button
+        ref={delBtn} className="draw-del" style={{ display: 'none' }} aria-label="Delete line"
+        onClick={() => { const st = useDraw.getState(); if (st.selected) st.remove(sessionRef.current.series.instrument.symbol, st.selected); }}
+      >🗑</button>
       <button ref={stopHandle} className="drag-handle stop" onPointerDown={startDrag('stop')} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} aria-label="Drag stop-loss">
         <span>🛡️</span><span className="drag-price num" /><span className="drag-grip">⇕</span>
       </button>

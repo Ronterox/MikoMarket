@@ -69,6 +69,7 @@
   --pal-coral: #ff9a76;
   --pal-teal: #4fd1d9;
   --pal-ink: #f3e6d6;
+  --draw: #ffb4d0;
   --bot: #8fc9e8;
 
   --radius: 20px;
@@ -128,6 +129,7 @@
   --pal-coral: #e0622a;
   --pal-teal: #1b9aa3;
   --pal-ink: #4a3a2e;
+  --draw: #c2407a;
   --bot: #4a90b8;
   color-scheme: light;
 }

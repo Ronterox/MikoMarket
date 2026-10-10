@@ -803,6 +803,11 @@ input[type='range']::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .candle-switch { display: inline-flex; padding: 2px; gap: 1px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line); }
 .candle-switch button { min-width: 30px; height: 22px; padding: 0 6px; border-radius: 7px; font-size: 11px; font-weight: 900; color: var(--muted); transition: background 0.2s, color 0.2s; }
 .candle-switch button.on { background: var(--grad); color: #fff; box-shadow: 0 2px 6px var(--glow-brand); }
+.draw-switch button { min-width: 26px; font-size: 12px; }
+.draw-hint { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--draw); color: var(--text); font-size: 12px; font-weight: 800; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18); animation: fade .2s ease-out; pointer-events: auto; }
+.draw-hint button { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: 11px; }
+body.drawing .miko-stage *, body.drawing .miko-free-layer * { pointer-events: none !important; }
+.draw-del { position: absolute; top: 0; left: 0; z-index: 5; width: 30px; height: 30px; border-radius: 50%; background: var(--surface); border: 1px solid var(--draw); font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
 
 /* Drag handles pin to the pane edge when their price is off-screen. */
 .drag-handle[data-pin='up'], .drag-handle[data-pin='down'] { box-shadow: 0 0 0 2px var(--surface-solid), var(--shadow-sm); }
