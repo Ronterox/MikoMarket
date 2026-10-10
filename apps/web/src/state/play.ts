@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import {
-  awardTrade, planQuickTrade, Session, sumXp,
-  type BarSeries, type EngineEvent, type Instrument, type OrderAction, type StrategySpec, type Timeframe, type Trade, type XpAward,
+  awardTrade, COACH_LINES, planQuickTrade, Session, sumXp,
+  type BarSeries, type EngineEvent, type Instrument, type OrderAction, type Params, type StrategySpec, type Timeframe, type Trade, type XpAward,
 } from '@miko/engine';
+import { coachV2, comboKind, tipsFor } from '../lib/coachV2.ts';
 import { fetchInstruments, loadSeries } from '../lib/api.ts';
 import { LOCAL_INSTRUMENTS, startingCash } from '../lib/instruments.ts';
 import { sound } from '../lib/sound.ts';
@@ -12,17 +13,34 @@ import { lsGet, lsSet } from '../lib/storage.ts';
 import { token } from '../lib/theme.ts';
 import { coach, todayLocal, useApp, type ResultsData } from './app.ts';
 
-export type Speed = 0 | 1 | 2 | 3;
+/** 0 = pause, 1 = 🐢 slow, 2 = ▶, 3 = ▶▶, 4 = ▶▶▶. */
+export type Speed = 0 | 1 | 2 | 3 | 4;
 export type RiskPct = 0.5 | 1 | 2;
+/** Stop distance in ATR multiples: Tight / Normal / Wide. */
+export type StopMult = 1 | 2 | 3;
+export type CandleMode = 'candles' | 'ha';
 
 /** ms per bar for each speed. */
-export const SPEED_MS: Record<Speed, number> = { 0: 0, 1: 1400, 2: 600, 3: 180 };
+export const SPEED_MS: Record<Speed, number> = { 0: 0, 1: 3000, 2: 1400, 3: 600, 4: 180 };
+export const STOP_LABEL: Record<StopMult, string> = { 1: 'Tight', 2: 'Normal', 3: 'Wide' };
+/** Most indicators drawn at once (the chip row itself can hold more). */
+export const MAX_ACTIVE = 4;
+export const DEFAULT_ROW = ['ema', 'sma', 'bb', 'vwap', 'supertrend', 'rsi', 'macd', 'donchian'];
 const ROUND_BARS = 240;
 const HISTORY_BARS = 160;
 
-interface Prefs { symbol: string; tf: Timeframe; indicators: string[]; riskPct: RiskPct; mystery: boolean }
+interface Prefs {
+  symbol: string; tf: Timeframe; indicators: string[]; riskPct: RiskPct; mystery: boolean;
+  chipRow?: string[]; lastSpeed?: Speed; stopMult?: StopMult; candleMode?: CandleMode;
+}
 const prefs: Prefs = { symbol: 'SPY', tf: '5m', indicators: ['ema'], riskPct: 1, mystery: false, ...(lsGet<Partial<Prefs>>('miko.play') ?? {}) };
 const savePrefs = (p: Partial<Prefs>) => lsSet('miko.play', { ...(lsGet<Prefs>('miko.play') ?? prefs), ...p });
+const savedParams = lsGet<Record<string, Params>>('miko.indParams') ?? {};
+const initialRow = (() => {
+  const row = Array.isArray(prefs.chipRow) ? prefs.chipRow.filter((x) => typeof x === 'string') : DEFAULT_ROW.slice();
+  for (const id of prefs.indicators) if (!row.includes(id)) row.unshift(id);
+  return row;
+})();
 
 interface PlayState {
   instruments: Instrument[];
@@ -39,9 +57,18 @@ interface PlayState {
   /** Bumped when a brand-new round starts (chart does a full reset). */
   round: number;
   speed: Speed;
+  /** Last non-zero speed (remembered across sessions). */
+  lastSpeed: Exclude<Speed, 0>;
   mystery: boolean;
+  /** Indicators drawn on the chart, in slot order. */
   indicators: string[];
+  /** The user-curated chip row (present in the row, not necessarily on the chart). */
+  chipRow: string[];
+  /** Custom params per indicator id (defaults when absent). */
+  indParams: Record<string, Params>;
   riskPct: RiskPct;
+  stopMult: StopMult;
+  candleMode: CandleMode;
   combo: number;
   liveAwards: XpAward[];
   tradeContext: { riskPct?: number; followedPlan?: boolean }[];
@@ -61,8 +88,18 @@ interface PlayState {
   close(from?: Element | null): void;
   moveBracket(kind: 'stop' | 'target', price: number): void;
   toggleIndicator(id: string): void;
+  addChip(id: string): void;
+  removeChip(id: string): void;
+  setIndParams(id: string, params: Params | null): void;
+  /** Lets Miko comment on a finished params change (call once the slider settles). */
+  commitIndParams(id: string): void;
   setMystery(on: boolean): void;
   setRisk(r: RiskPct): void;
+  setStopMult(m: StopMult): void;
+  setCandleMode(m: CandleMode): void;
+  removeStop(): void;
+  restoreStop(): void;
+  moveToBreakeven(): void;
   sendBot(spec: StrategySpec): void;
   clearBot(): void;
   finish(): void;
@@ -75,6 +112,7 @@ let initStarted = false;
 let demoTold = false;
 let liveSource: EventSource | null = null;
 let pendingRiskPct: number | undefined;
+let haExplained = false;
 
 function seededStart(n: number): number {
   const lo = Math.min(n - ROUND_BARS - 2, HISTORY_BARS + 60);
@@ -109,12 +147,30 @@ export const usePlay = create<PlayState>((set, get) => {
     index: session.index,
     lifetimeTrades: useApp.getState().profile.stats.trades,
     riskPct: pendingRiskPct,
+    recentBars: session.series.bars.slice(Math.max(0, session.index - 20), session.index + 1),
+    startEquity: session.initialCash,
   });
+  const say = (tip: ReturnType<typeof coachV2.onClock>) => { if (tip) useApp.getState().say(tip); };
+
+  /** Tell Miko the indicator set changed, and give her a visual reaction to the combo. */
+  const indicatorsChanged = (id: string, action: 'add' | 'remove' | 'params') => {
+    const { indicators, indParams } = get();
+    say(coachV2.onIndicators(indicators.map((x) => ({ id: x, params: indParams[x] ?? {} })), { id, action }, get().tf));
+    if (action !== 'add') return;
+    const kind = comboKind(indicators);
+    if (kind === 'unusual' || kind === 'redundant') useApp.getState().mikoReact('surprise');
+    else if (kind === 'classic') useApp.getState().mikoReact('sparkle');
+  };
 
   const wire = (session: Session) => {
     unsub?.();
     unsub = session.on('*', (e: EngineEvent) => {
-      if (e.type === 'fill') {
+      if (e.type === 'bar') {
+        const s = get();
+        if (!s.mystery) say(coachV2.onClock(e.bar.t));
+      } else if (e.type === 'equity') {
+        say(coachV2.onPerformance(coachCtx(session)));
+      } else if (e.type === 'fill') {
         // fill sounds for exits are handled by tradeClosed juice
       } else if (e.type === 'positionOpened' && e.position.actor === 'manual') {
         sound.play(e.position.side === 'long' ? 'buy' : 'sell');
@@ -170,9 +226,14 @@ export const usePlay = create<PlayState>((set, get) => {
     version: 0,
     round: 0,
     speed: 0,
+    lastSpeed: prefs.lastSpeed && prefs.lastSpeed > 0 && prefs.lastSpeed <= 4 ? prefs.lastSpeed as Exclude<Speed, 0> : 2,
     mystery: prefs.mystery,
-    indicators: prefs.indicators.slice(0, 2),
+    indicators: prefs.indicators.filter((id) => initialRow.includes(id)).slice(0, MAX_ACTIVE),
+    chipRow: initialRow,
+    indParams: savedParams,
     riskPct: prefs.riskPct,
+    stopMult: prefs.stopMult === 1 || prefs.stopMult === 3 ? prefs.stopMult : 2,
+    candleMode: prefs.candleMode === 'ha' ? 'ha' : 'candles',
     combo: 0,
     liveAwards: [],
     tradeContext: [],
@@ -220,10 +281,14 @@ export const usePlay = create<PlayState>((set, get) => {
       }
     },
 
-    setSpeed: (speed) => { sound.play('tick'); set({ speed }); },
+    setSpeed: (speed) => {
+      sound.play('tick');
+      if (speed > 0) { savePrefs({ lastSpeed: speed }); set({ speed, lastSpeed: speed as Exclude<Speed, 0> }); }
+      else set({ speed });
+    },
 
     trade: (action, from) => {
-      const { session, riskPct, live } = get();
+      const { session, riskPct, live, stopMult } = get();
       if (!session || (session.done && !live)) return;
       if (session.state.workingOrders.some((o) => o.actor === 'manual' && o.type === 'market')) return;
       const pos = session.state.position;
@@ -233,8 +298,9 @@ export const usePlay = create<PlayState>((set, get) => {
         useApp.getState().sayText('You already have that trade on. Let it work! 🌱', 'teaching', 30);
         return;
       }
+      say(coachV2.onAction(action, coachCtx(session)));
       if (pos) session.flatten('manual');
-      const plan = planQuickTrade(session, action, { riskPct });
+      const plan = planQuickTrade(session, action, { riskPct, atrMult: stopMult });
       if (plan.qty < 1) {
         sound.play('error');
         useApp.getState().sayText('Not enough buying power for even 1 unit here. Try a cheaper market 🍎', 'worried', 60);
@@ -259,6 +325,7 @@ export const usePlay = create<PlayState>((set, get) => {
       if (!session) return;
       const working = session.state.workingOrders.length > 0;
       if (!session.state.position && !working) { sound.play('error'); return; }
+      say(coachV2.onAction('close', coachCtx(session)));
       session.flatten('manual');
       sound.play('close');
       const { x, y } = fx.centerOf(from);
@@ -275,11 +342,42 @@ export const usePlay = create<PlayState>((set, get) => {
 
     toggleIndicator: (id) => {
       const cur = get().indicators;
-      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2);
+      const on = cur.includes(id);
+      const next = on ? cur.filter((x) => x !== id) : [...cur, id].slice(-MAX_ACTIVE);
       sound.play('tick');
       savePrefs({ indicators: next });
       set({ indicators: next });
+      indicatorsChanged(id, on ? 'remove' : 'add');
     },
+
+    addChip: (id) => {
+      const { chipRow } = get();
+      if (!chipRow.includes(id)) {
+        const row = [...chipRow, id];
+        savePrefs({ chipRow: row });
+        set({ chipRow: row });
+      }
+      if (!get().indicators.includes(id)) get().toggleIndicator(id);
+    },
+
+    removeChip: (id) => {
+      const { chipRow, indicators } = get();
+      const row = chipRow.filter((x) => x !== id);
+      const next = indicators.filter((x) => x !== id);
+      sound.play('whoosh');
+      savePrefs({ chipRow: row, indicators: next });
+      set({ chipRow: row, indicators: next });
+      if (next.length !== indicators.length) indicatorsChanged(id, 'remove');
+    },
+
+    setIndParams: (id, params) => {
+      const all = { ...get().indParams };
+      if (params && Object.keys(params).length > 0) all[id] = params; else delete all[id];
+      lsSet('miko.indParams', all);
+      set({ indParams: all });
+    },
+
+    commitIndParams: (id) => { if (get().indicators.includes(id)) indicatorsChanged(id, 'params'); },
 
     setMystery: (mystery) => {
       savePrefs({ mystery });
@@ -288,6 +386,57 @@ export const usePlay = create<PlayState>((set, get) => {
     },
 
     setRisk: (riskPct) => { sound.play('tick'); savePrefs({ riskPct }); set({ riskPct }); },
+
+    setStopMult: (stopMult) => { sound.play('tick'); savePrefs({ stopMult }); set({ stopMult }); },
+
+    setCandleMode: (candleMode) => {
+      sound.play('tick');
+      savePrefs({ candleMode });
+      set({ candleMode });
+      if (candleMode === 'ha' && !haExplained) {
+        haExplained = true;
+        const line = tipsFor('ha')[0];
+        useApp.getState().sayText(line ?? 'Heikin-Ashi smooths candles to show the trend. Your fills still use the real price 🕯️', 'teaching', 45);
+      }
+    },
+
+    removeStop: () => {
+      const { session } = get();
+      if (!session?.state.position) return;
+      session.setBracket({ stopLoss: null, trailDistance: null });
+      sound.play('error');
+      const lines = COACH_LINES.no_stop ?? [];
+      const text = lines.length ? lines[Math.floor(Math.random() * lines.length)]!({}) : 'No stop now ⚠️ Decide where you are wrong before the market does.';
+      useApp.getState().say({ id: 'no_stop_ui', mood: 'worried', priority: 99, text });
+      useApp.getState().mikoReact('surprise');
+      bump();
+    },
+
+    restoreStop: () => {
+      const { session, stopMult, riskPct } = get();
+      const pos = session?.state.position;
+      if (!session || !pos) return;
+      const plan = planQuickTrade(session, pos.side === 'long' ? 'buy' : 'sell', { riskPct, atrMult: stopMult });
+      session.setBracket({ stopLoss: plan.stopLoss });
+      sound.play('tick');
+      bump();
+    },
+
+    moveToBreakeven: () => {
+      const { session } = get();
+      const pos = session?.state.position;
+      if (!session || !pos || pos.unrealized <= 0) return;
+      const tick = session.series.instrument.tickSize;
+      const last = session.cols.c[session.index]!;
+      const be = Math.round(pos.avgPrice / tick) * tick;
+      // Only when breakeven is still on the safe side of the last price (otherwise it would fill instantly).
+      if (pos.side === 'long' ? be >= last : be <= last) return;
+      session.setBracket({ stopLoss: be, trailDistance: null });
+      sound.play('combo', 1);
+      const { x, y } = fx.centerOf(document.querySelector('[data-fx="pnl"]'));
+      fx.float('🛡️ Breakeven', x, y, token('--up'), 22);
+      bump();
+    },
 
     sendBot: (spec) => {
       set({ botSpec: spec });

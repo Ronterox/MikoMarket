@@ -8,7 +8,9 @@ import { sound } from '../lib/sound.ts';
 import { fx } from '../lib/fx.ts';
 import { lsGet, lsSet } from '../lib/storage.ts';
 
-export type Tab = 'play' | 'lab' | 'me';
+export type Tab = 'play' | 'lab' | 'leaders' | 'me';
+/** One-shot visual reactions on Miko (surprise jump with a "!", or a happy sparkle). */
+export type MikoFx = { kind: 'surprise' | 'sparkle'; n: number } | null;
 export type Theme = 'dark' | 'light';
 
 export interface ResultsData {
@@ -45,6 +47,9 @@ interface AppState {
   tipQueue: Tip[];
   mikoMood: Mood;
   mikoCollapsed: boolean;
+  mikoFx: MikoFx;
+  /** Play's chart "stage" element: Miko docks there on the Play tab. */
+  mikoStage: HTMLElement | null;
   overlay: Overlay;
 
   setTab(t: Tab): void;
@@ -58,6 +63,8 @@ interface AppState {
   nextTip(): void;
   setMood(m: Mood): void;
   toggleMiko(): void;
+  mikoReact(kind: 'surprise' | 'sparkle'): void;
+  setMikoStage(el: HTMLElement | null): void;
   setOverlay(o: Overlay): void;
   /** Runs engine applySession, persists, and returns the result for the UI to celebrate. */
   commitSession(input: ApplySessionInput): ReturnType<typeof applySession>;
@@ -81,6 +88,8 @@ export const useApp = create<AppState>((set, get) => ({
   tipQueue: [],
   mikoMood: 'happy',
   mikoCollapsed: false,
+  mikoFx: null,
+  mikoStage: null,
   overlay: null,
 
   setTab: (tab) => { if (tab !== get().tab) { sound.play('tick'); set({ tab }); } },
@@ -132,6 +141,8 @@ export const useApp = create<AppState>((set, get) => ({
 
   setMood: (mikoMood) => set({ mikoMood }),
   toggleMiko: () => { sound.play('tick'); set({ mikoCollapsed: !get().mikoCollapsed }); },
+  mikoReact: (kind) => set((s) => ({ mikoFx: { kind, n: (s.mikoFx?.n ?? 0) + 1 } })),
+  setMikoStage: (mikoStage) => { if (get().mikoStage !== mikoStage) set({ mikoStage }); },
   setOverlay: (overlay) => set({ overlay }),
 
   commitSession: (input) => {

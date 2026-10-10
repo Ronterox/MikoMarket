@@ -4,7 +4,7 @@ import {
   type IChartApi, type IPriceLine, type ISeriesApi, type ISeriesMarkersPluginApi, type LineData, type SeriesMarker,
   type Time, type UTCTimestamp, type WhitespaceData,
 } from 'lightweight-charts';
-import { computeIndicator, listIndicators, type Bar, type IndicatorMeta, type Session, type Trade } from '@miko/engine';
+import { computeIndicator, listIndicators, type Bar, type IndicatorMeta, type Params, type Session, type Trade } from '@miko/engine';
 import { priceFmt, signedMoney } from '../../lib/format.ts';
 import { useApp } from '../../state/app.ts';
 import { slotColors, token } from '../../lib/theme.ts';
@@ -19,7 +19,16 @@ const cssVar = (name: string) => token(name);
 
 function toCandle(b: Bar) { return { time: ts(b.t), open: b.o, high: b.h, low: b.l, close: b.c }; }
 
-interface IndLayer { id: string; meta: IndicatorMeta; data: Record<string, Float64Array>; series: { key: string; s: ISeriesApi<'Line'> }[] }
+type HA = Record<string, Float64Array>;
+/** Visual-only candle for bar i: real OHLC, or its Heikin-Ashi version when `ha` is set. */
+function candleAt(bars: Bar[], i: number, ha: HA | null) {
+  const b = bars[i]!;
+  if (!ha) return toCandle(b);
+  const o = ha.open![i]!, h = ha.high![i]!, l = ha.low![i]!, c = ha.close![i]!;
+  return Number.isFinite(o) ? { time: ts(b.t), open: o, high: h, low: l, close: c } : toCandle(b);
+}
+
+interface IndLayer { id: string; meta: IndicatorMeta; params: Params; data: Record<string, Float64Array>; series: { key: string; s: ISeriesApi<'Line'> }[] }
 
 export interface PlayChartProps {
   session: Session;
@@ -28,14 +37,17 @@ export interface PlayChartProps {
   round: number;
   speedMs: number;
   indicators: string[];
+  indParams: Record<string, Params>;
+  candleMode: 'candles' | 'ha';
   mystery: boolean;
   onBracket: (kind: 'stop' | 'target', price: number) => void;
+  onRemoveStop: () => void;
 }
 
 const nyFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
 const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
 
-export function PlayChart({ session, botSession, version, round, speedMs, indicators, mystery, onBracket }: PlayChartProps) {
+export function PlayChart({ session, botSession, version, round, speedMs, indicators, indParams, candleMode, mystery, onBracket, onRemoveStop }: PlayChartProps) {
   const theme = useApp((s) => s.theme);
   const wrap = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -45,16 +57,23 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   const fromIdx = useRef(0);
   const forming = useRef(false);
   const layers = useRef<IndLayer[]>([]);
-  const lines = useRef<{ entry?: IPriceLine; stop?: IPriceLine; target?: IPriceLine }>({});
+  const lines = useRef<{ entry?: IPriceLine; stop?: IPriceLine; target?: IPriceLine; real?: IPriceLine }>({});
   const stopHandle = useRef<HTMLButtonElement>(null);
   const targetHandle = useRef<HTMLButtonElement>(null);
-  const drag = useRef<{ kind: 'stop' | 'target'; price: number } | null>(null);
+  const drag = useRef<{ kind: 'stop' | 'target'; price: number; off: boolean } | null>(null);
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const onBracketRef = useRef(onBracket);
   onBracketRef.current = onBracket;
+  const onRemoveStopRef = useRef(onRemoveStop);
+  onRemoveStopRef.current = onRemoveStop;
+  /** Heikin-Ashi arrays (display only) when HA mode is on. */
+  const haRef = useRef<HA | null>(null);
+  const structure = useRef('');
 
   const metas = useMemo(() => new Map(listIndicators().map((m) => [m.id, m])), []);
+  const candleModeRef = useRef(candleMode);
+  candleModeRef.current = candleMode;
 
   // ── create chart once ──
   useEffect(() => {
@@ -100,7 +119,19 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       upColor: cssVar('--up'), downColor: cssVar('--down'), wickUpColor: cssVar('--wick-up'), wickDownColor: cssVar('--wick-down'),
       priceLineColor: cssVar('--brand-2'),
     });
+    lines.current.real?.applyOptions({ color: cssVar('--brand-2') });
   }, [theme]);
+
+  // ── candle mode: HA is display-only; the real price keeps its own axis label ──
+  useEffect(() => {
+    const candle = candleRef.current;
+    if (!candle) return;
+    haRef.current = null;
+    const ha = candleMode === 'ha';
+    candle.applyOptions({ lastValueVisible: !ha, priceLineVisible: !ha });
+    fullReset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candleMode, session]);
 
   // ── mystery mode hides dates ──
   useEffect(() => {
@@ -125,10 +156,38 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     if (!candle || !chart) return;
     const bars = s.series.bars;
     fromIdx.current = Math.max(0, s.startIndex - HISTORY);
-    candle.setData(bars.slice(fromIdx.current, s.index + 1).map(toCandle));
+    const ha = haData();
+    const data = [];
+    for (let i = fromIdx.current; i <= s.index; i++) data.push(candleAt(bars, i, ha));
+    candle.setData(data);
     lastIdx.current = s.index;
     forming.current = false;
     for (const layer of layers.current) fillLayer(layer);
+    syncRealLine(s.cols.c[s.index]!);
+  };
+
+  /** HA arrays for the current session (recomputed when live mode appends bars). HA is causal. */
+  const haData = (): HA | null => {
+    if (candleModeRef.current !== 'ha') return null;
+    const s = sessionRef.current;
+    const cur = haRef.current;
+    if (!cur || (cur.close?.length ?? 0) < s.cols.c.length) {
+      try { haRef.current = computeIndicator(s.cols, 'ha'); } catch { haRef.current = null; }
+    }
+    return haRef.current;
+  };
+
+  /** In HA mode the candles are smoothed, so the real last price gets its own labelled line. */
+  const syncRealLine = (price: number) => {
+    const candle = candleRef.current;
+    if (!candle) return;
+    const L = lines.current;
+    if (candleModeRef.current !== 'ha' || !Number.isFinite(price)) {
+      if (L.real) { candle.removePriceLine(L.real); delete L.real; }
+      return;
+    }
+    if (!L.real) L.real = candle.createPriceLine({ price, color: cssVar('--brand-2'), lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'real' });
+    else L.real.applyOptions({ price });
   };
 
   const lineData = (arr: Float64Array, from: number, to: number, bars: Bar[]): (LineData | WhitespaceData)[] => {
@@ -157,17 +216,31 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
   }, [round, session]);
 
   // ── indicator layers ──
+  // Same ids in the same order with new params: recompute data in place (smooth live preview).
+  // A different set: rebuild the series and panes.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    const sig = `${session.series.instrument.symbol}|${round}|${theme}|${indicators.join(',')}`;
+    if (sig === structure.current && layers.current.length === indicators.length) {
+      for (const layer of layers.current) {
+        const params = indParams[layer.id] ?? {};
+        if (JSON.stringify(params) === JSON.stringify(layer.params)) continue;
+        try { layer.data = computeIndicator(session.cols, layer.id, params); layer.params = params; } catch { continue; }
+        fillLayer(layer);
+      }
+      return;
+    }
+    structure.current = sig;
     for (const layer of layers.current) for (const { s } of layer.series) chart.removeSeries(s);
     layers.current = [];
     let pane = 1;
     indicators.forEach((id, slot) => {
       const meta = metas.get(id);
       if (!meta) return;
+      const params = indParams[id] ?? {};
       let data: Record<string, Float64Array>;
-      try { data = computeIndicator(session.cols, id); } catch { return; }
+      try { data = computeIndicator(session.cols, id, params); } catch { return; }
       const paneIndex = meta.overlay ? 0 : pane++;
       const keys = meta.outputs.map((o) => o.key).filter((k) => data[k] && (!meta.overlay || !NON_PRICE.has(k)));
       const [c1, c2] = slotColors(slot);
@@ -183,16 +256,16 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
         if (k === 0 && !meta.overlay) for (const lv of meta.levels ?? []) s.createPriceLine({ price: lv, color: cssVar('--ind-level'), lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: '' });
         return { key, s };
       });
-      const layer = { id, meta, data, series };
+      const layer = { id, meta, params, data, series };
       layers.current.push(layer);
       fillLayer(layer);
     });
     const panes = chart.panes();
     // Stretch factors survive hidden tabs / resizes (fixed pixel heights do not).
-    panes[0]?.setStretchFactor(panes.length > 1 ? 3.2 : 1);
+    panes[0]?.setStretchFactor(panes.length > 1 ? Math.max(2.2, 3.6 - panes.length * 0.4) : 1);
     for (let p = 1; p < panes.length; p++) panes[p]!.setStretchFactor(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indicators, session, metas, theme]);
+  }, [indicators, indParams, session, metas, theme, round]);
 
   // ── incremental updates per step ──
   useEffect(() => {
@@ -203,12 +276,13 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     if (s.index < lastIdx.current || forming.current && s.index === lastIdx.current) {
       fullReset();
     } else {
+      const ha = haData();
       for (let i = lastIdx.current + 1; i <= s.index; i++) {
-        candle.update(toCandle(bars[i]!));
+        candle.update(candleAt(bars, i, ha));
         for (const layer of layers.current) {
           // Live mode appends bars: recompute (causal) indicators when the series grew.
           if ((layer.data[layer.series[0]?.key ?? '']?.length ?? 0) <= i) {
-            try { layer.data = computeIndicator(s.cols, layer.id); } catch { /* keep old */ }
+            try { layer.data = computeIndicator(s.cols, layer.id, layer.params); } catch { /* keep old */ }
           }
           for (const { key, s: ser } of layer.series) {
             const v = layer.data[key]?.[i] ?? NaN;
@@ -218,6 +292,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       }
       lastIdx.current = s.index;
       forming.current = false;
+      syncRealLine(s.cols.c[s.index]!);
     }
 
     // markers
@@ -251,7 +326,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     sync('entry', pos?.avgPrice, cssVar('--chart-text'), '', LineStyle.Dotted);
     sync('stop', pos?.trailStop ?? pos?.stopLoss, down, '', LineStyle.Dashed);
     sync('target', pos?.takeProfit, up, '', LineStyle.Dashed);
-  }, [version, session, botSession, theme]);
+  }, [version, session, botSession, theme, candleMode]);
 
   // ── forming candle animation (visual only: the engine never sees it) ──
   useEffect(() => {
@@ -280,33 +355,53 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
       price += Math.sin(now / 37) * (next.h - next.l) * 0.04 * (1 - k);
       price = Math.min(next.h, Math.max(next.l, price));
       hi = Math.max(hi, price); lo = Math.min(lo, price);
-      candle.update({ time: ts(next.t), open: next.o, high: hi, low: lo, close: price });
+      const ha = candleModeRef.current === 'ha' ? haRef.current : null;
+      if (ha && Number.isFinite(ha.open![s.index]!)) {
+        // HA of the forming bar: open = mid of the previous HA body, close = average of OHLC so far.
+        const ho = (ha.open![s.index]! + ha.close![s.index]!) / 2;
+        const hc = (next.o + hi + lo + price) / 4;
+        candle.update({ time: ts(next.t), open: ho, high: Math.max(hi, ho, hc), low: Math.min(lo, ho, hc), close: hc });
+        lines.current.real?.applyOptions({ price });
+      } else {
+        candle.update({ time: ts(next.t), open: next.o, high: hi, low: lo, close: price });
+      }
       forming.current = true;
       if (k < 1) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, speedMs, session]);
+  }, [version, speedMs, session, candleMode]);
 
-  // ── drag handles follow their lines ──
+  // ── drag handles follow their lines; off-screen prices pin to the pane edge ──
   useEffect(() => {
     let raf = 0;
     const loop = () => {
-      const candle = candleRef.current;
+      const candle = candleRef.current, chart = chartRef.current;
       const s = sessionRef.current;
       const pos = s.state.position;
+      const paneH = chart?.panes()[0]?.getHeight() ?? wrap.current?.clientHeight ?? 0;
+      const axisW = chart ? chart.priceScale('right').width() : 0;
       const place = (el: HTMLButtonElement | null, kind: 'stop' | 'target', price: number | undefined) => {
         if (!el) return;
-        const p = drag.current?.kind === kind ? drag.current.price : price;
-        const y = p !== undefined && candle ? candle.priceToCoordinate(p) : null;
-        const h = wrap.current?.clientHeight ?? 0;
-        if (y === null || y < 4 || y > h - 4) { el.style.opacity = '0'; el.style.pointerEvents = 'none'; return; }
+        const d = drag.current?.kind === kind ? drag.current : null;
+        const p = d ? d.price : price;
+        if (p === undefined || !candle || paneH <= 0) { el.style.opacity = '0'; el.style.pointerEvents = 'none'; return; }
+        const raw = candle.priceToCoordinate(p);
+        let y = raw ?? (p > s.cols.c[s.index]! ? -1 : paneH + 1);
+        const pin = y < 0 ? 'up' : y > paneH ? 'down' : '';
+        // Keep the whole pill inside the pane (it is 28px tall and centred on its line).
+        y = Math.max(12, Math.min(paneH - 12, y));
         el.style.opacity = '1';
         el.style.pointerEvents = 'auto';
-        el.style.transform = `translateY(${y - 14}px)`;
+        el.style.right = `${axisW + 6}px`;
+        el.style.transform = `translateY(${y + 4 - 14}px)`;
+        el.dataset.pin = pin;
+        el.dataset.off = d?.off ? '1' : '';
         const label = el.querySelector('.drag-price');
-        if (label && p !== undefined) label.textContent = priceFmt(p, s.series.instrument.tickSize);
+        if (label) label.textContent = d?.off ? 'remove' : priceFmt(p, s.series.instrument.tickSize);
+        const arrowEl = el.querySelector('.drag-grip');
+        if (arrowEl) arrowEl.textContent = d?.off ? '✕' : pin === 'up' ? '▲' : pin === 'down' ? '▼' : '⇕';
       };
       place(stopHandle.current, 'stop', pos ? pos.trailStop ?? pos.stopLoss : undefined);
       place(targetHandle.current, 'target', pos?.takeProfit);
@@ -323,7 +418,7 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     if (price === undefined) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { kind, price };
+    drag.current = { kind, price, off: false };
     chartRef.current?.applyOptions({ handleScroll: false, handleScale: false });
   };
 
@@ -334,13 +429,17 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     const pos = s.state.position;
     if (!pos) return;
     const y = e.clientY - el.getBoundingClientRect().top;
-    const raw = candle.coordinateToPrice(y);
+    const long = pos.side === 'long';
+    // Dragging the stop past the pane edge on its own side removes it (shown as "remove").
+    const paneH = chartRef.current?.panes()[0]?.getHeight() ?? el.clientHeight;
+    d.off = d.kind === 'stop' && (long ? y > paneH + 6 : y < -6);
+    if (d.off) return;
+    const raw = candle.coordinateToPrice(Math.max(0, Math.min(paneH, y)));
     if (raw === null) return;
     const tick = s.series.instrument.tickSize;
     const last = s.cols.c[s.index]!;
     let p = Math.round(raw / tick) * tick;
     // Keep the line on the sensible side of the last price so it doesn't trigger instantly.
-    const long = pos.side === 'long';
     const isBelow = (d.kind === 'stop') === long;
     p = isBelow ? Math.min(p, last - tick) : Math.max(p, last + tick);
     d.price = p;
@@ -351,7 +450,9 @@ export function PlayChart({ session, botSession, version, round, speedMs, indica
     const d = drag.current;
     drag.current = null;
     chartRef.current?.applyOptions({ handleScroll: true, handleScale: true });
-    if (d) onBracketRef.current(d.kind, d.price);
+    if (!d) return;
+    if (d.off) onRemoveStopRef.current();
+    else onBracketRef.current(d.kind, d.price);
   };
 
   return (

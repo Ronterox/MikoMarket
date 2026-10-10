@@ -7,7 +7,7 @@ const FALLBACK: Record<string, string> = {
   '--up': '#2fd38a', '--down': '#ff8551', '--text': '#fff6ec', '--muted': '#cdbba8', '--star': '#fff1de',
   '--chart-grid': 'rgba(255,228,200,0.055)', '--chart-text': '#b5a291', '--chart-cross': '#ff9a76',
   '--wick-up': 'rgba(47,211,138,0.7)', '--wick-down': 'rgba(255,133,81,0.7)',
-  '--ind-1': '#3fb8f5', '--ind-1b': '#93d6fa', '--ind-2': '#ff8fb8', '--ind-2b': '#ffc4da',
+  '--ind-1': '#3fb8f5', '--ind-1b': '#93d6fa', '--ind-2': '#ff8fb8', '--ind-2b': '#ffc4da', '--ind-3': '#e8c27a', '--ind-3b': '#f3dcae',
   '--ind-level': 'rgba(205,187,168,0.4)', '--bot': '#8fc9e8', '--surface-2': '#342c27', '--bg': '#171412',
 };
 
@@ -21,11 +21,12 @@ export function token(name: string): string {
 
 /** Indicator slot colours: [main line, secondary lines]. */
 export function slotColors(slot: number): [string, string] {
-  return slot % 2 === 0 ? [token('--ind-1'), token('--ind-1b')] : [token('--ind-2'), token('--ind-2b')];
+  const n = (slot % 3) + 1;
+  return [token(`--ind-${n}`), token(`--ind-${n}b`)];
 }
 
 /** CSS-variable form for DOM styling (chips etc.). */
-export const SLOT_VARS = ['var(--ind-1)', 'var(--ind-2)'] as const;
+export const SLOT_VARS = ['var(--ind-1)', 'var(--ind-2)', 'var(--ind-3)'] as const;
 
 /** Same colour with a new alpha (accepts #rgb, #rrggbb, rgb(), rgba()). Chart libs want plain rgba. */
 export function alpha(color: string, a: number): string {

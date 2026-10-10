@@ -57,6 +57,8 @@
   --ind-1b: #93d6fa;
   --ind-2: #ff8fb8;
   --ind-2b: #ffc4da;
+  --ind-3: #e8c27a;
+  --ind-3b: #f3dcae;
   --ind-level: rgba(205, 187, 168, 0.4);
   --bot: #8fc9e8;
 
@@ -106,6 +108,8 @@
   --ind-1b: #7cc2ea;
   --ind-2: #d94f87;
   --ind-2b: #eda0c0;
+  --ind-3: #b8862f;
+  --ind-3b: #dcb978;
   --ind-level: rgba(122, 102, 86, 0.4);
   --bot: #4a90b8;
   color-scheme: light;

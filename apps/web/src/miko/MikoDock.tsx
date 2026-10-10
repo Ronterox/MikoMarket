@@ -16,9 +16,20 @@ export function MikoDock() {
   const toggle = useApp((s) => s.toggleMiko);
   const setMood = useApp((s) => s.setMood);
   const say = useApp((s) => s.say);
+  const mikoFx = useApp((s) => s.mikoFx);
   const [typed, setTyped] = useState(0);
   const [bounce, setBounce] = useState(0);
+  const [react, setReact] = useState<{ kind: 'surprise' | 'sparkle'; n: number } | null>(null);
   const idleTimer = useRef(0);
+
+  // One-shot reactions: 😳 jump with a "!" pop, or a happy sparkle.
+  useEffect(() => {
+    if (!mikoFx) return;
+    setReact(mikoFx);
+    sound.play(mikoFx.kind === 'surprise' ? 'whoosh' : 'tick');
+    const id = window.setTimeout(() => setReact(null), 1500);
+    return () => window.clearTimeout(id);
+  }, [mikoFx]);
 
   // Typewriter
   useEffect(() => {
@@ -67,16 +78,20 @@ export function MikoDock() {
   };
 
   return (
-    <div className={`miko-dock ${collapsed ? 'collapsed' : ''}`}>
+    <div className={`miko-dock ${collapsed ? 'collapsed' : ''} ${react ? `react-${react.kind}` : ''}`}>
       {tip && !collapsed && (
         <div key={tip.id} className={`miko-bubble mood-${tip.mood}`} role="status" aria-live="polite" onClick={onBubble}>
           <span className="miko-bubble-text">{tip.text.slice(0, typed)}<span className="miko-caret" aria-hidden>{done ? '' : '▍'}</span></span>
           {done && <span className="miko-bubble-next">{queue > 0 ? `▶ ${queue}` : '✓'}</span>}
         </div>
       )}
-      <button key={bounce} className="miko-avatar-btn" onClick={onAvatar} aria-label={collapsed ? 'Open Miko' : 'Ask Miko for a tip'}>
-        <MikoAvatar mood={collapsed ? 'happy' : mood} size={collapsed ? 40 : 78} talking={!!tip && !done} />
+      <button key={`${bounce}-${react?.n ?? 0}`} className="miko-avatar-btn" onClick={onAvatar} aria-label={collapsed ? 'Open Miko' : 'Ask Miko for a tip'}>
+        <MikoAvatar mood={collapsed ? 'happy' : react?.kind === 'surprise' ? 'worried' : react?.kind === 'sparkle' ? 'excited' : mood} size={collapsed ? 40 : 78} talking={!!tip && !done} />
         {collapsed && tip && <span className="miko-dot" />}
+        {!collapsed && react?.kind === 'surprise' && <span key={react.n} className="miko-react surprise" aria-hidden><b>!</b><i>😳</i></span>}
+        {!collapsed && react?.kind === 'sparkle' && (
+          <span key={react.n} className="miko-react sparkle" aria-hidden><i>✨</i><i>⭐</i><i>✨</i><i>💖</i><i>✨</i></span>
+        )}
       </button>
       {!collapsed && (
         <button className="miko-min" onClick={toggle} aria-label="Hide Miko">–</button>
