@@ -1,6 +1,10 @@
 import { existsSync, statSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
-import { STRATEGY_TEMPLATES, listIndicators } from '@miko/engine';
+import {
+  RIVALS_LABEL, STRATEGY_TEMPLATES, listIndicators, rankLeaderboard, rivalEntries, weekKey, weeklyStats, weeksWithData,
+  type BarSeries, type LeaderboardEntry,
+} from '@miko/engine';
 import {
   FileProfileStore, INSTRUMENTS, TradeStationClient, availableTimeframes, dataPaths, getBars, instrumentFor,
   listDatasets, withProxies, parseTimeframe, profileProblems, isValidProfileId, tradeStationConfig,
@@ -17,11 +21,18 @@ export interface AppOptions {
   /** Responses larger than this (bytes) are gzipped when the client accepts it. */
   gzipOver?: number;
   log?: (message: string) => void;
+  /** Instruments the rival bots trade on 5m bars. Default SPY and @MNQ (whatever has data). */
+  leaderboardSymbols?: string[];
+  /** Wall clock (for the default leaderboard week). Default Date.now. */
+  now?: () => number;
 }
 
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?$/;
 const MAX_BARS = 200_000;
 const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
+const RIVAL_TF = '5m' as const;
+const RIVAL_CACHE_LIMIT = 32;
+const WEEK_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function cors(req: Request, headers: Headers): void {
   const origin = req.headers.get('origin');
@@ -47,6 +58,9 @@ export function createApp(opts: AppOptions = {}): { fetch: (req: Request) => Pro
   const webDir = opts.webDir === undefined ? (existsSync(defaultWeb) ? defaultWeb : null) : opts.webDir;
   const gzipOver = opts.gzipOver ?? 32 * 1024;
   const log = opts.log ?? ((m: string) => console.error(m));
+  const now = opts.now ?? (() => Date.now());
+  const rivalSymbols = opts.leaderboardSymbols ?? ['SPY', '@MNQ'];
+  const rivalCache = new Map<string, LeaderboardEntry[]>();
 
   const json = (req: Request, body: unknown, status = 200): Response => {
     const text = safeJson(body);
@@ -142,6 +156,74 @@ export function createApp(opts: AppOptions = {}): { fetch: (req: Request) => Pro
     return error(req, 405, 'use GET or PUT');
   }
 
+  /** 5m bars for the rival bots; symbols without data are skipped. */
+  async function rivalSeries(): Promise<BarSeries[]> {
+    const out: BarSeries[] = [];
+    for (const symbol of rivalSymbols) {
+      try {
+        const s = await getBars({ symbol, timeframe: RIVAL_TF }, { dataDir: opts.dataDir, client, log });
+        if (s.bars.length) out.push({ instrument: s.instrument, timeframe: s.timeframe, bars: s.bars });
+      } catch { /* no data for this symbol: skip it */ }
+    }
+    return out;
+  }
+
+  async function allProfiles(): Promise<Profile[]> {
+    let names: string[];
+    try { names = await readdir(paths.profiles); } catch { return []; }
+    const out: Profile[] = [];
+    for (const name of names) {
+      const m = /^(.+)\.json$/.exec(name);
+      if (!m || !isValidProfileId(m[1]!)) continue;
+      try {
+        const p = await store.load(m[1]!);
+        if (p && Array.isArray(p.history)) out.push(p);
+      } catch (e) {
+        log(`leaderboard: skipping unreadable profile ${name}: ${(e as Error).message}`);
+      }
+    }
+    return out;
+  }
+
+  async function leaderboard(req: Request, url: URL): Promise<Response> {
+    const q = url.searchParams.get('week');
+    if (q && (!WEEK_RE.test(q) || !Number.isFinite(Date.parse(`${q}T12:00:00Z`)))) return error(req, 400, 'week must be YYYY-MM-DD');
+    const week = q ? weekKey(Date.parse(`${q}T12:00:00Z`)) : weekKey(now());
+    const series = await rivalSeries();
+    const weeks = weeksWithData(series);
+    const dataWeek = weeks.includes(week) ? week : (weeks.find((w) => w < week) ?? weeks[0] ?? null);
+    let rivals: LeaderboardEntry[] = [];
+    if (dataWeek) {
+      const key = `${dataWeek}|${series.map((s) => `${s.instrument.symbol}:${s.bars[s.bars.length - 1]!.t}`).join(',')}`;
+      let hit = rivalCache.get(key);
+      if (!hit) {
+        hit = rivalEntries(series, dataWeek);
+        if (rivalCache.size >= RIVAL_CACHE_LIMIT) rivalCache.delete(rivalCache.keys().next().value!);
+        rivalCache.set(key, hit);
+      }
+      rivals = hit;
+    }
+    const players = (await allProfiles()).map((p) => weeklyStats(p, week)).filter((e): e is LeaderboardEntry => e !== null);
+    const note = !dataWeek
+      ? 'No market data yet, so the rival bots are resting.'
+      : dataWeek !== week ? `No market data for the week of ${week} yet, so the rival bots traded the week of ${dataWeek}.` : undefined;
+    return json(req, {
+      week, dataWeek, entries: rankLeaderboard([...players, ...rivals]), generatedAt: now(),
+      rivals: { label: RIVALS_LABEL, symbols: series.map((s) => s.instrument.symbol), timeframe: RIVAL_TF, initialCash: 10_000 },
+      ...(note ? { note } : {}),
+    });
+  }
+
+  async function leaderboardWeeks(req: Request): Promise<Response> {
+    const dataWeeks = weeksWithData(await rivalSeries());
+    const playerWeeks = new Set<string>();
+    for (const p of await allProfiles()) {
+      for (const h of p.history) if (h && (h.mode === 'arcade' || h.mode === 'live') && Number.isFinite(h.t)) playerWeeks.add(weekKey(h.t));
+    }
+    const weeks = [...new Set([...dataWeeks, ...playerWeeks])].sort().reverse().slice(0, 26);
+    return json(req, { current: weekKey(now()), weeks, dataWeeks: dataWeeks.slice(0, 26) });
+  }
+
   function serveStatic(req: Request, url: URL): Response | null {
     if (!webDir) return null;
     let rel: string;
@@ -181,6 +263,10 @@ export function createApp(opts: AppOptions = {}): { fetch: (req: Request) => Pro
           return bars(req, url);
         case '/api/stream':
           return stream(req, url);
+        case '/api/leaderboard':
+          return leaderboard(req, url);
+        case '/api/leaderboard/weeks':
+          return leaderboardWeeks(req);
         case '/api/datasets': {
           const datasets = withProxies(await listDatasets(opts.dataDir));
           return json(req, {
