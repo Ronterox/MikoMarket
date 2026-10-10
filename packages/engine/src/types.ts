@@ -446,6 +446,8 @@ export interface SessionSummary {
   metrics: Metrics;
   xpEarned: number;
   ratingDelta: number;
+  /** Sum of the winning trades' P&L (gross $ won). Optional: older rows lack it. */
+  grossWins?: number;
 }
 
 export interface SavedStrategy {

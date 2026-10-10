@@ -192,7 +192,8 @@ export function applySession(profile: Profile, input: ApplySessionInput, now: nu
   xp = profile.xp + sumXp(awards);
 
   const xpEarned = xp - profile.xp;
-  const entry: SessionSummary = { ...summary, xpEarned, ratingDelta };
+  const grossWins = trades.length > 0 ? trades.reduce((sum, t) => sum + (t.pnl > 0 ? t.pnl : 0), 0) : summary.grossWins;
+  const entry: SessionSummary = { ...summary, ...(grossWins !== undefined ? { grossWins } : {}), xpEarned, ratingDelta };
   next = {
     ...next,
     xp,
