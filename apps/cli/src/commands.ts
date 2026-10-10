@@ -1,9 +1,11 @@
-import { writeFileSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import {
+  RIVALS_LABEL, rankLeaderboard, rivalEntries, weekKey, weeklyStats, weeksWithData, type BarSeries, type LeaderboardEntry,
   STRATEGY_TEMPLATES, costsFor, describeStrategy, evolveStrategy, getAtPointer, listIndicators, runBacktest,
   stressTest, walkForward, type BacktestResult, type FitnessKind, type Metrics, type StrategySpec,
 } from '@miko/engine';
 import {
+  FileProfileStore, getBars, isValidProfileId,
   BarCache, DEFAULT_TECHNICAL_ANALYSIS_DIR, INSTRUMENTS, TradeStationClient, availableTimeframes, dataPaths,
   importFromTechnicalAnalysis, listDatasets, parseTimeframe, tradeStationConfig, type LoadedSeries,
 } from '@miko/data';
@@ -246,5 +248,45 @@ export async function cmdWalkForward(args: Args): Promise<void> {
     const eff = res.efficiency;
     const effStr = Number.isFinite(eff) ? pct(eff * 100, 0) : 'n/a';
     console.log(`  Walk-forward efficiency: ${eff >= 0.5 ? c.green(effStr) : eff > 0 ? c.yellow(effStr) : c.red(effStr)} ${c.gray('(>50% is good: unseen periods kept most of the optimised edge)')}`);
+  });
+}
+
+// ───────────────────────────── leaderboard ─────────────────────────────
+
+export async function cmdLeaderboard(args: Args): Promise<void> {
+  const q = str(args, 'week');
+  if (q && !/^\d{4}-\d{2}-\d{2}$/.test(q)) throw new CliError('--week must be YYYY-MM-DD');
+  const week = weekKey(q ? Date.parse(`${q}T12:00:00Z`) : Date.now());
+  const series: BarSeries[] = [];
+  for (const symbol of (str(args, 'symbol') ?? 'SPY,@MNQ').split(',')) {
+    try {
+      const s = await getBars({ symbol: symbol.trim(), timeframe: '5m' }, { client: args.offline ? null : undefined, log: () => {} });
+      if (s.bars.length) series.push(s);
+    } catch { /* no data for this symbol */ }
+  }
+  const weeks = weeksWithData(series);
+  const dataWeek = weeks.includes(week) ? week : (weeks.find((w) => w < week) ?? weeks[0] ?? null);
+  const store = new FileProfileStore();
+  const players: LeaderboardEntry[] = [];
+  let files: string[] = [];
+  try { files = readdirSync(store.dir); } catch { /* no profiles yet */ }
+  for (const f of files) {
+    const id = f.replace(/\.json$/, '');
+    if (!f.endsWith('.json') || !isValidProfileId(id)) continue;
+    try {
+      const p = await store.load(id);
+      const e = p && Array.isArray(p.history) ? weeklyStats(p, week) : null;
+      if (e) players.push(e);
+    } catch { /* unreadable profile */ }
+  }
+  const entries = rankLeaderboard([...players, ...(dataWeek ? rivalEntries(series, dataWeek) : [])]);
+  out(args, { week, dataWeek, entries }, () => {
+    console.log(`${c.bold('Weekly leaderboard')} — week of ${week}`);
+    if (dataWeek !== week) console.log(c.gray(dataWeek ? `No market data for that week: ${RIVALS_LABEL} traded the week of ${dataWeek}.` : 'No market data: the rival bots are resting.'));
+    console.log(table(['>#', '', 'Name', 'Kind', '>Trades', '>Win rate', '>Profit', '>Winnings'], entries.map((e) => [
+      e.rank ?? c.gray('-'), e.avatar ?? '', c.bold(e.name) + (e.strategy ? c.gray(` (${e.strategy})`) : ''),
+      e.kind === 'rival' ? c.gray('bot') : 'player', e.trades, pct(e.winRate * 100, 0), signedMoney(e.profit), money(e.winnings),
+    ])));
+    console.log(c.gray(`${RIVALS_LABEL}: real backtests of the starter templates, $10,000 each on ${series.map((s) => s.instrument.symbol).join(' + ') || 'no data'} 5m. Fewer than 3 trades = unranked.`));
   });
 }

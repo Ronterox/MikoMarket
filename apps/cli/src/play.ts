@@ -54,6 +54,8 @@ export async function cmdPlay(args: Args): Promise<void> {
     index: session.index,
     lifetimeTrades: profile.stats.trades,
     riskPct: pendingRisk,
+    recentBars: series.bars.slice(Math.max(0, session.index - 20), session.index + 1),
+    startEquity: initialCash,
   });
 
   session.on('*', (ev: EngineEvent) => {
@@ -99,6 +101,7 @@ export async function cmdPlay(args: Args): Promise<void> {
   const trade = (action: 'buy' | 'sell'): void => {
     const pos = session.state.position;
     if (pos && ((pos.side === 'long' && action === 'sell') || (pos.side === 'short' && action === 'buy'))) {
+      say(coach.onAction(action, ctx()));
       session.flatten('manual');
       console.log(`  ${c.cyan('closing')} ${pos.side} at the next bar's open`);
       return;
@@ -106,6 +109,7 @@ export async function cmdPlay(args: Args): Promise<void> {
     if (pos) { console.log(c.gray('  already in a position: f to flatten')); return; }
     const plan = planQuickTrade(session, action, { riskPct });
     if (plan.qty < 1) { console.log(c.yellow('  not enough buying power for even one unit')); return; }
+    say(coach.onAction(action, ctx()));
     const equity = session.state.equity;
     pendingRisk = equity > 0 ? (Math.abs(series.bars[session.index]!.c - plan.stopLoss) * plan.qty * series.instrument.pointValue / equity) * 100 : undefined;
     const order = action === 'buy'
@@ -119,6 +123,8 @@ export async function cmdPlay(args: Args): Promise<void> {
     for (let k = 0; k < n && !session.done; k++) {
       session.step();
       if (n === 1 || k === n - 1) status();
+      say(coach.onClock(series.bars[session.index]!.t));
+      say(coach.onPerformance(ctx()));
     }
   };
 
@@ -163,7 +169,7 @@ export async function cmdPlay(args: Args): Promise<void> {
       case 'b': trade('buy'); break;
       case 's': trade('sell'); break;
       case 'f': {
-        if (session.state.position) { session.flatten('manual'); console.log(`  ${c.cyan('flatten')} at the next bar's open`); } else console.log(c.gray('  nothing to flatten'));
+        if (session.state.position) { say(coach.onAction('close', ctx())); session.flatten('manual'); console.log(`  ${c.cyan('flatten')} at the next bar's open`); } else console.log(c.gray('  nothing to flatten'));
         break;
       }
       case ' ': case '\r': case '\n': step(1); break;

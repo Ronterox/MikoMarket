@@ -87,4 +87,11 @@ describe('cli', () => {
     expect(r.out).toContain('Session over');
     expect(r.out).toMatch(/XP/);
   });
+
+  test('leaderboard without 5m data lists nobody and says why', async () => {
+    const r = await run('leaderboard', '--week', '2026-01-07', '--offline', '--json');
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.out)).toEqual({ week: '2026-01-05', dataWeek: null, entries: [] });
+    expect((await run('leaderboard', '--week', 'soon', '--offline')).code).not.toBe(0);
+  });
 });

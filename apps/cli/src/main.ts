@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import { CliError, type Args } from './common.ts';
 import {
-  cmdBacktest, cmdEvolve, cmdFetch, cmdImport, cmdIndicators, cmdInstruments, cmdStress, cmdTemplates, cmdWalkForward,
+  cmdBacktest, cmdEvolve, cmdFetch, cmdImport, cmdIndicators, cmdInstruments, cmdLeaderboard, cmdStress, cmdTemplates, cmdWalkForward,
 } from './commands.ts';
 import { cmdPlay } from './play.ts';
 import { c, setColor } from './ui.ts';
@@ -20,6 +20,7 @@ ${c.bold('Engine')}
   stress       ... [--runs 1000] [--seed 1]          S/A/B/C/D grade + reasons
   walkforward  ... [--windows 4] [--pop 24 --gens 12]
   play         --symbol SPY --tf 5m [--length 300] [--risk 1] [--script "b   f q"]
+  leaderboard  [--week YYYY-MM-DD] [--symbol SPY,@MNQ]   weekly players + Miko's rival bots
 
 ${c.bold('Common')}
   --bars N  --from DATE  --to DATE  --offline (never call TradeStation)  --json  --no-color
@@ -34,7 +35,7 @@ const OPTIONS = {
   oos: { type: 'string' }, runs: { type: 'string' }, windows: { type: 'string' }, years: { type: 'string' },
   length: { type: 'string' }, risk: { type: 'string' }, script: { type: 'string' }, profile: { type: 'string' },
   'no-save': { type: 'boolean' }, offline: { type: 'boolean' }, env: { type: 'string' }, 'no-color': { type: 'boolean' },
-  verbose: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+  verbose: { type: 'boolean' }, week: { type: 'string' }, help: { type: 'boolean', short: 'h' },
 } as const;
 
 const COMMANDS: Record<string, (args: Args) => Promise<void>> = {
@@ -49,6 +50,7 @@ const COMMANDS: Record<string, (args: Args) => Promise<void>> = {
   walkforward: cmdWalkForward,
   'walk-forward': cmdWalkForward,
   play: cmdPlay,
+  leaderboard: cmdLeaderboard,
 };
 
 export async function main(argv: string[]): Promise<number> {
