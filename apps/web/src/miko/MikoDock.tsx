@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { MikoAvatar } from './MikoAvatar.tsx';
 import { coach, useApp } from '../state/app.ts';
 import { sound } from '../lib/sound.ts';
+import { exclamationFor, voice, type Exclamation } from '../lib/voice.ts';
 import type { Tip } from '@miko/engine';
 import { beginMikoDrag, justDragged } from './drag.ts';
 
 const CHAR_MS = 22;
 /** Typing progress per tip: moving Miko remounts her, and she resumes instead of retyping. */
 const typedChars = new WeakMap<Tip, number>();
+const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
+/** What she says when tapped, and when tapped too much. */
+const TAP_LINES: readonly Exclamation[] = ['hai', 'nya', 'ehehe', 'ufufu'];
+const POKES_TO_POUT = 5;
 
 /** Miko in her corner: speech bubble with typewriter text, auto-dismiss, tap for the next tip. */
 export function MikoDock() {
@@ -25,12 +30,16 @@ export function MikoDock() {
   const [bounce, setBounce] = useState(0);
   const [react, setReact] = useState<{ kind: 'surprise' | 'sparkle'; n: number } | null>(null);
   const idleTimer = useRef(0);
+  const pokes = useRef<number[]>([]);
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
 
   // One-shot reactions: 😳 jump with a "!" pop, or a happy sparkle.
   useEffect(() => {
     if (!mikoFx) return;
     setReact(mikoFx);
-    sound.play(mikoFx.kind === 'surprise' ? 'whoosh' : 'tick');
+    sound.play(mikoFx.kind === 'surprise' ? 'whoosh' : 'pop');
+    if (!collapsedRef.current) voice.exclaim(mikoFx.kind === 'surprise' ? 'ehh' : pick(['kyaa', 'sugoi', 'ufufu'] as const));
     const id = window.setTimeout(() => setReact(null), 1500);
     return () => window.clearTimeout(id);
   }, [mikoFx]);
@@ -40,7 +49,15 @@ export function MikoDock() {
     let i = tip ? typedChars.get(tip) ?? 0 : 0;
     setTyped(i);
     if (!tip || i >= tip.text.length) return;
-    if (i === 0) setBounce((b) => b + 1);
+    if (i === 0) {
+      setBounce((b) => b + 1);
+      // She talks as she types: sometimes an interjection first, then babble shaped by her mood.
+      if (!collapsedRef.current) {
+        const ex = exclamationFor(tip.mood, Math.random());
+        if (ex) voice.exclaim(ex);
+        voice.babble(tip.text, tip.mood);
+      }
+    }
     const id = window.setInterval(() => {
       i += 1;
       typedChars.set(tip, i);
@@ -62,7 +79,7 @@ export function MikoDock() {
   useEffect(() => {
     window.clearTimeout(idleTimer.current);
     if (tip) return;
-    idleTimer.current = window.setTimeout(() => setMood('sleepy'), 60_000);
+    idleTimer.current = window.setTimeout(() => { setMood('sleepy'); if (!collapsedRef.current && !document.hidden) voice.exclaim('fuwaa'); }, 60_000);
     const back = window.setTimeout(() => { if (useApp.getState().mikoMood !== 'sleepy') setMood('happy'); }, 1200);
     return () => { window.clearTimeout(idleTimer.current); window.clearTimeout(back); };
   }, [tip, setMood]);
@@ -71,15 +88,25 @@ export function MikoDock() {
 
   const done = tip ? typed >= tip.text.length : true;
   const onBubble = () => {
-    sound.play('tick');
+    sound.play('tap');
     if (!done && tip) { typedChars.set(tip, tip.text.length); setTyped(tip.text.length); }
     else nextTip();
   };
   const onAvatar = () => {
     if (justDragged()) return;
     if (collapsed) { toggle(); return; }
-    sound.play('tick');
-    if (!tip) say(coach.idle());
+    sound.play('tap');
+    // Poke her a lot and she pouts (once, then the count starts over).
+    const now = performance.now();
+    pokes.current = [...pokes.current.filter((t) => now - t < 3000), now];
+    if (pokes.current.length >= POKES_TO_POUT) {
+      pokes.current = [];
+      voice.exclaim('mou');
+      useApp.getState().mikoReact('surprise');
+      useApp.getState().sayText(pick(['Mou~! That tickles! 😤', 'Hey! I am not a button! 😤💕', 'Mou! Eyes on the chart, Trader! 😤']), 'worried', 70);
+      return;
+    }
+    if (!tip) { if (Math.random() < 0.7) voice.exclaim(pick(TAP_LINES)); say(coach.idle()); }
     else onBubble();
   };
 

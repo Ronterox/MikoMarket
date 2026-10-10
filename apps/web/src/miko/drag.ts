@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useApp } from '../state/app.ts';
 import { sound } from '../lib/sound.ts';
+import { voice } from '../lib/voice.ts';
 
 /** Movement (px) before a press on Miko becomes a drag instead of a tap. */
 const THRESHOLD = 6;
@@ -30,7 +31,8 @@ export function beginMikoDrag(e: ReactPointerEvent<HTMLElement>) {
       if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < THRESHOLD) return;
       dragging = true;
       document.body.classList.add('miko-dragging');
-      sound.play('whoosh');
+      sound.play('pickup');
+      voice.exclaim('wa');
     }
     ev.preventDefault();
     x = ev.clientX - offX;
@@ -49,7 +51,8 @@ export function beginMikoDrag(e: ReactPointerEvent<HTMLElement>) {
     const { tab, setMikoSpot, setMikoDrag } = useApp.getState();
     setMikoSpot(tab, { x: clamp01(x / window.innerWidth), y: clamp01(y / window.innerHeight) });
     setMikoDrag(null);
-    sound.play('tick');
+    sound.play('drop');
+    if (Math.random() < 0.6) voice.exclaim(Math.random() < 0.5 ? 'ehehe' : 'fufun');
   };
   window.addEventListener('pointermove', move, { passive: false });
   window.addEventListener('pointerup', end);

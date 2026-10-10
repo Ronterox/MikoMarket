@@ -4,6 +4,7 @@ import {
   type AchievementDef, type ApplySessionInput, type Mood, type Profile, type Tip, type XpAward,
 } from '@miko/engine';
 import { HybridProfileStore, getOrCreateProfileId } from '../lib/profileStore.ts';
+import { voice } from '../lib/voice.ts';
 import { sound } from '../lib/sound.ts';
 import { fx } from '../lib/fx.ts';
 import { lsGet, lsSet } from '../lib/storage.ts';
@@ -115,6 +116,7 @@ export const useApp = create<AppState>((set, get) => ({
     const profile = loaded ? { ...createProfile(id, 'Trader', Date.now()), ...loaded, settings: { ...createProfile(id, 'Trader', 0).settings, ...loaded.settings } } : get().profile;
     sound.setEnabled(profile.settings.sound);
     sound.musicEnabled = profile.settings.music;
+    voice.enabled = profile.settings.voice !== false;
     fx.reduced = profile.settings.reducedMotion || prefersReducedMotion();
     set({ profile, profileReady: true });
     if (!loaded) void profileStore.save(profile);
@@ -130,6 +132,7 @@ export const useApp = create<AppState>((set, get) => ({
     const settings = { ...p.settings, ...patch };
     if (patch.sound !== undefined) sound.setEnabled(patch.sound);
     if (patch.music !== undefined) sound.setMusic(patch.music);
+    if (patch.voice !== undefined) { voice.enabled = patch.voice; if (patch.voice) voice.exclaim('hai'); else voice.hush(); }
     if (patch.reducedMotion !== undefined) fx.reduced = patch.reducedMotion || prefersReducedMotion();
     get().saveProfile({ ...p, settings });
   },

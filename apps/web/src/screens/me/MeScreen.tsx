@@ -84,6 +84,7 @@ export function MeScreen() {
             <Toggle icon="🔊" label="Sound" on={profile.settings.sound} onChange={(v) => setSettings({ sound: v })} />
             <Toggle icon="🎵" label="Music" on={profile.settings.music} onChange={(v) => setSettings({ music: v })} />
             <Toggle icon="🌸" label="Miko" on={profile.settings.assistant} onChange={(v) => setSettings({ assistant: v })} />
+            <Toggle icon="🎙️" label="Miko voice" on={profile.settings.voice} onChange={(v) => setSettings({ voice: v })} />
             <Toggle icon="🐢" label="Calm motion" on={profile.settings.reducedMotion} onChange={(v) => setSettings({ reducedMotion: v })} />
             <Toggle icon={theme === 'dark' ? '🌙' : '☀️'} label="Night mode" on={theme === 'dark'} onChange={(v) => setTheme(v ? 'dark' : 'light')} />
             {mikoMoved && (
