@@ -94,10 +94,12 @@ export function applySession(profile: Profile, input: ApplySessionInput, now: nu
   const awards: XpAward[] = [];
 
   // ── Trade XP ──
+  // Habit XP teaches the player: a bot's trades count as results, but its habits are not the player's.
+  const isBot = summary.mode === 'bot';
   const initialCash = input.initialCash ?? impliedInitialCash(summary.metrics.netProfit, summary.metrics.netProfitPct);
   const equityBefore = equityBeforeEach(trades, initialCash);
   let winStreak = 0;
-  trades.forEach((t, i) => {
+  if (!isBot) trades.forEach((t, i) => {
     winStreak = t.pnl > 0 ? winStreak + 1 : 0;
     const tc = input.tradeContext?.[i];
     awards.push(...awardTrade(t, {
@@ -110,16 +112,16 @@ export function applySession(profile: Profile, input: ApplySessionInput, now: nu
 
   // ── Session XP ──
   const streak = dailyStreak(profile, input.today ?? dayOf(now));
-  if (trades.length > 0) awards.push({ amount: SESSION_XP.complete, reason: 'Session complete', icon: '🎮' });
+  if (trades.length > 0) awards.push(isBot ? { amount: SESSION_XP.complete, reason: 'Bot finished a round', icon: '🤖' } : { amount: SESSION_XP.complete, reason: 'Session complete', icon: '🎮' });
   else awards.push({ amount: SESSION_XP.showedUp, reason: 'Showed up and stayed patient', icon: '🧘' });
   if (streak.firstToday) awards.push({ amount: SESSION_XP.firstToday, reason: 'First session today', icon: '☀️' });
   if (streak.firstToday && streak.days >= 2) {
     awards.push({ amount: Math.min(SESSION_XP.streakCap, SESSION_XP.streakPerDay * streak.days), reason: `${streak.days}-day streak`, icon: '📆' });
   }
-  if (trades.length >= 5 && trades.every((t) => t.hadStop)) {
+  if (!isBot && trades.length >= 5 && trades.every((t) => t.hadStop)) {
     awards.push({ amount: SESSION_XP.disciplined, reason: 'Every trade had a stop', icon: '🧱' });
   }
-  if (trades.length >= 3 && summary.metrics.maxDrawdownPct < 5) {
+  if (!isBot && trades.length >= 3 && summary.metrics.maxDrawdownPct < 5) {
     awards.push({ amount: SESSION_XP.calmDrawdown, reason: 'Drawdown kept under 5%', icon: '🌊' });
   }
   if (event === 'strategyBuilt') awards.push({ amount: SESSION_XP.strategyBuilt, reason: 'Built a bot', icon: '🤖' });
@@ -181,9 +183,10 @@ export function applySession(profile: Profile, input: ApplySessionInput, now: nu
   };
 
   // ── Achievements (each pays a little XP) ──
-  const unlocked = checkAchievements(next, {
-    trades, summary, report, event, localHour: input.localHour, initialCash,
-  });
+  // Skill achievements read the session's own trades: a bot's round only moves the lifetime stats.
+  const unlocked = checkAchievements(next, isBot
+    ? { trades: [], report, event, localHour: input.localHour, initialCash }
+    : { trades, summary, report, event, localHour: input.localHour, initialCash });
   const achievements = { ...profile.achievements };
   for (const a of unlocked) {
     achievements[a.id] = now;

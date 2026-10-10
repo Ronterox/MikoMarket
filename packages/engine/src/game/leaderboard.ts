@@ -2,7 +2,7 @@
  * Weekly leaderboard: players from their profile history plus honest NPC rivals whose
  * results come from real backtests of the strategy templates on that week's bars.
  */
-import type { BarSeries, Profile } from '../types.ts';
+import type { BarSeries, Profile, SessionSummary } from '../types.ts';
 import { runBacktest } from '../backtest/run.ts';
 import { STRATEGY_TEMPLATES } from '../strategy/index.ts';
 import { nyClock } from './clock.ts';
@@ -42,10 +42,17 @@ export function weekKey(t: number): string {
   return new Date(monday * DAY).toISOString().slice(0, 10);
 }
 
-/** A player's results for one week. Arcade and live sessions count; Bot Lab rows do not. Null when none. */
+/** True for sessions that are real trading results: arcade, live, and bot rounds played forward. */
+export const countsAsTrading = (s: SessionSummary): boolean =>
+  s.mode === 'arcade' || s.mode === 'live' || (s.mode === 'bot' && s.playedForward === true);
+
+/**
+ * A player's results for one week. Arcade, live and the player's bots played forward on Play count;
+ * Bot Lab events and history backtests do not. Null when none.
+ */
 export function weeklyStats(profile: Profile, week: string): LeaderboardEntry | null {
   const rows = (profile.history ?? []).filter(
-    (s) => (s.mode === 'arcade' || s.mode === 'live') && Number.isFinite(s.t) && s.metrics && weekKey(s.t) === week,
+    (s) => countsAsTrading(s) && Number.isFinite(s.t) && s.metrics && weekKey(s.t) === week,
   );
   if (rows.length === 0) return null;
   let trades = 0, wins = 0, profit = 0, profitPct = 0, winnings = 0;

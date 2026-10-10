@@ -448,6 +448,11 @@ export interface SessionSummary {
   ratingDelta: number;
   /** Sum of the winning trades' P&L (gross $ won). Optional: older rows lack it. */
   grossWins?: number;
+  /**
+   * A bot round played forward on unseen bars next to the player (Play tab), as opposed to a
+   * Bot Lab event or history backtest. Only these 'bot' rows count as trading results.
+   */
+  playedForward?: boolean;
 }
 
 export interface SavedStrategy {
